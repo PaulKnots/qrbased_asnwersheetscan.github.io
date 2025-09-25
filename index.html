@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Answer Sheet Scanner with Alignment Guides</title>
+    <title>Optimized Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -345,24 +345,28 @@
             margin: 20px auto;
             border: 1px solid #ddd;
             background: #f8f9fa;
+            height: 240px; /* 15 rows * 16px per row (approx 6mm) */
+            overflow-y: auto;
         }
         
         .grid-cell {
-            aspect-ratio: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.7rem;
             position: relative;
+            height: 16px; /* Approx 6mm at 96 DPI */
         }
         
         .question-cell {
             background: #e8f4fc;
             font-weight: bold;
+            width: 28px; /* Approx 7mm at 96 DPI */
         }
         
         .option-cell {
             background: #f8f9fa;
+            width: 24px; /* Approx 6mm at 96 DPI */
         }
         
         .detected {
@@ -404,8 +408,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Answer Sheet Scanner with Alignment Guides</h1>
-            <p class="subtitle">Detects pencil-shaded areas with alignment guides for accurate scanning</p>
+            <h1>Optimized Answer Sheet Scanner</h1>
+            <p class="subtitle">Compact grid with 6mm cell height for better scanning experience</p>
         </header>
         
         <div class="instructions">
@@ -767,7 +771,7 @@
                         const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
                         
                         // Sample a small area around the bubble center
-                        const sampleSize = 12; // Increased sample size for better detection
+                        const sampleSize = 10; // Reduced sample size for 6mm cells
                         let darkPixelCount = 0;
                         let totalPixelCount = 0;
                         
@@ -788,7 +792,7 @@
                                     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                                     
                                     // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 120) { // Adjusted threshold for better detection
+                                    if (luminance < 110) { // Adjusted threshold for 6mm cells
                                         darkPixelCount++;
                                     }
                                     totalPixelCount++;
@@ -797,7 +801,7 @@
                         }
                         
                         // If a significant portion of the sample area is dark, consider it shaded
-                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.35) { // Lowered threshold
+                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) { // Maintained detection threshold
                             // Determine which option this is
                             const option = String.fromCharCode(65 + opt); // A, B, C, D, E
                             answers[q] = option;
