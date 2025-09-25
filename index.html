@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Answer Sheet Scanner with Pencil Detection</title>
+    <title>Answer Sheet Scanner with Alignment Guides</title>
     <style>
         * {
             box-sizing: border-box;
@@ -159,6 +159,12 @@
             right: 20px;
             border-left: none;
             border-top: none;
+        }
+        
+        .guide {
+            position: absolute;
+            border: 2px dashed #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
         }
         
         .controls {
@@ -398,15 +404,15 @@
 <body>
     <div class="container">
         <header>
-            <h1>Answer Sheet Scanner with Pencil Detection</h1>
-            <p class="subtitle">Detects only pencil-shaded areas while ignoring green background</p>
+            <h1>Answer Sheet Scanner with Alignment Guides</h1>
+            <p class="subtitle">Detects pencil-shaded areas with alignment guides for accurate scanning</p>
         </header>
         
         <div class="instructions">
             <h3>How to Use:</h3>
             <ol>
                 <li>Click "Start Camera" to allow camera access</li>
-                <li>Position the answer sheet within the corner guides</li>
+                <li>Align the answer sheet with the corner guides and question column guides</li>
                 <li>Enter the correct answers in the format "A,B,C,D,E,A,C,B..." (60 answers)</li>
                 <li>Click "Scan Answer Sheet" to process the current frame</li>
                 <li>Results will update automatically</li>
@@ -426,7 +432,7 @@
                         <p>Click the button below to start camera</p>
                     </div>
                     
-                    <div class="overlay">
+                    <div class="overlay" id="overlay">
                         <div class="corner corner-tl"></div>
                         <div class="corner corner-tr"></div>
                         <div class="corner corner-bl"></div>
@@ -441,7 +447,7 @@
                 </div>
                 
                 <div class="processing-info">
-                    <p><strong>Processing Info:</strong> Detecting dark areas (pencil shading) while ignoring green background</p>
+                    <p><strong>Processing Info:</strong> Align answer sheet with corner and column guides for best results</p>
                 </div>
                 
                 <div class="controls">
@@ -521,6 +527,7 @@
             const progressBar = document.getElementById('progress-bar');
             const progressValue = document.getElementById('progress-value');
             const detectionGrid = document.getElementById('detection-grid');
+            const overlay = document.getElementById('overlay');
             
             // Elements for results
             const totalQuestionsEl = document.getElementById('total-questions');
@@ -572,8 +579,34 @@
                 }
             }
             
-            // Initialize the grid
+            // Create alignment guides
+            function createGuides() {
+                // Remove existing guides
+                const existingGuides = document.querySelectorAll('.guide');
+                existingGuides.forEach(guide => guide.remove());
+                
+                // Create question column guides (columns 0, 6, 12, 18)
+                const colPositions = [0, 6, 12, 18];
+                const cellWidth = 100 / 24; // Percentage of total width
+                const cellHeight = 100 / 15; // Percentage of total height
+                
+                colPositions.forEach(col => {
+                    const guide = document.createElement('div');
+                    guide.className = 'guide';
+                    guide.style.left = `${col * cellWidth}%`;
+                    guide.style.top = '0%';
+                    guide.style.width = `${cellWidth}%`;
+                    guide.style.height = '100%';
+                    guide.style.borderLeft = '2px solid #e74c3c';
+                    guide.style.borderRight = '2px solid #e74c3c';
+                    guide.title = `Question Column ${col}`;
+                    overlay.appendChild(guide);
+                });
+            }
+            
+            // Initialize the grid and guides
             createDetectionGrid();
+            createGuides();
             
             // Get camera access when button is clicked
             requestCameraBtn.addEventListener('click', async function() {
@@ -590,8 +623,11 @@
                     cameraPlaceholder.style.display = 'none';
                     requestCameraBtn.style.display = 'none';
                     scanBtn.disabled = false;
-                    statusDiv.textContent = 'Camera ready. Position answer sheet within corner guides.';
+                    statusDiv.textContent = 'Camera ready. Align answer sheet with corner and column guides.';
                     statusDiv.className = 'status ready';
+                    
+                    // Create guides after camera starts
+                    setTimeout(createGuides, 500);
                 } catch (err) {
                     console.error("Error accessing camera: ", err);
                     statusDiv.textContent = 'Camera access denied. Please enable camera to scan answer sheets.';
@@ -652,6 +688,7 @@
                 
                 // Reset grid
                 createDetectionGrid();
+                createGuides();
             });
             
             // Save results functionality
@@ -730,7 +767,7 @@
                         const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
                         
                         // Sample a small area around the bubble center
-                        const sampleSize = 10;
+                        const sampleSize = 12; // Increased sample size for better detection
                         let darkPixelCount = 0;
                         let totalPixelCount = 0;
                         
@@ -751,7 +788,7 @@
                                     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                                     
                                     // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 100) { // Adjust threshold as needed
+                                    if (luminance < 120) { // Adjusted threshold for better detection
                                         darkPixelCount++;
                                     }
                                     totalPixelCount++;
@@ -760,7 +797,7 @@
                         }
                         
                         // If a significant portion of the sample area is dark, consider it shaded
-                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) {
+                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.35) { // Lowered threshold
                             // Determine which option this is
                             const option = String.fromCharCode(65 + opt); // A, B, C, D, E
                             answers[q] = option;
@@ -841,7 +878,7 @@
             }
             
             // Initialize with a sample answer key
-            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
+            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
         });
     </script>
 </body>
