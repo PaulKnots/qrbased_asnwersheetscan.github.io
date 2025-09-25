@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Functional Answer Sheet Scanner</title>
+    <title>Answer Sheet Scanner with Pencil Detection</title>
     <style>
         * {
             box-sizing: border-box;
@@ -98,6 +98,10 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: none;
+        }
+        
+        #canvas {
             display: none;
         }
         
@@ -371,6 +375,14 @@
             background: #2c3e50;
         }
         
+        .processing-info {
+            background: #e8f4fc;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column;
@@ -386,8 +398,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Functional Answer Sheet Scanner</h1>
-            <p class="subtitle">Point your camera at the answer sheet to scan and grade in real-time</p>
+            <h1>Answer Sheet Scanner with Pencil Detection</h1>
+            <p class="subtitle">Detects only pencil-shaded areas while ignoring green background</p>
         </header>
         
         <div class="instructions">
@@ -407,6 +419,7 @@
                 
                 <div class="camera-container">
                     <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
                     <div class="camera-placeholder" id="camera-placeholder">
                         <i>📷</i>
                         <p>Camera Access Required</p>
@@ -425,6 +438,10 @@
                 
                 <div class="status ready" id="status">
                     Ready to scan answer sheet
+                </div>
+                
+                <div class="processing-info">
+                    <p><strong>Processing Info:</strong> Detecting dark areas (pencil shading) while ignoring green background</p>
                 </div>
                 
                 <div class="controls">
@@ -492,6 +509,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
             const cameraPlaceholder = document.getElementById('camera-placeholder');
             const requestCameraBtn = document.getElementById('request-camera-btn');
             const scanBtn = document.getElementById('scan-btn');
@@ -592,25 +610,31 @@
                 statusDiv.textContent = 'Scanning answer sheet...';
                 statusDiv.className = 'status processing';
                 
-                // Simulate scanning process
-                setTimeout(() => {
-                    // Detect answers from the current video frame
-                    const detectedAnswers = detectAnswers();
-                    
-                    // Update the grid with detected answers
-                    updateGridWithAnswers(detectedAnswers);
-                    
-                    // Calculate results if answer key is provided
-                    const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                    if (answerKey.length === 60) {
-                        calculateResults(answerKey, detectedAnswers);
-                        statusDiv.textContent = 'Answer sheet processed successfully!';
-                        statusDiv.className = 'status success';
-                    } else {
-                        statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
-                        statusDiv.className = 'status error';
-                    }
-                }, 1500);
+                // Process the current video frame
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Draw video frame to canvas
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Process the image to detect dark areas
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const detectedAnswers = detectShadedBubbles(imageData);
+                
+                // Update the grid with detected answers
+                updateGridWithAnswers(detectedAnswers);
+                
+                // Calculate results if answer key is provided
+                const answerKey = answerKeyInput.value.toUpperCase().split(',');
+                if (answerKey.length === 60) {
+                    calculateResults(answerKey, detectedAnswers);
+                    statusDiv.textContent = 'Answer sheet processed successfully!';
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
+                    statusDiv.className = 'status error';
+                }
             });
             
             // Reset button functionality
@@ -667,22 +691,86 @@
                 alert('Results exported to CSV!');
             });
             
-            // Simulate answer detection from camera frame
-            function detectAnswers() {
-                const answers = [];
+            // Detect shaded bubbles in the image
+            function detectShadedBubbles(imageData) {
+                const width = imageData.width;
+                const height = imageData.height;
+                const data = imageData.data;
                 
-                // In a real app, this would analyze the video frame to detect shaded bubbles
-                // For this demo, we'll generate a realistic answer pattern
-                for (let i = 0; i < 60; i++) {
-                    // Simulate realistic answer distribution
-                    const options = ['A', 'B', 'C', 'D', 'E'];
-                    // More likely to select a random answer, but with some bias
-                    if (Math.random() > 0.85) {
-                        answers.push(options[Math.floor(Math.random() * options.length)]);
-                    } else {
-                        // More likely to select A, B, or C
-                        const commonOptions = ['A', 'B', 'C'];
-                        answers.push(commonOptions[Math.floor(Math.random() * commonOptions.length)]);
+                // Define the positions of the answer bubbles based on the grid
+                // We'll scan the grid areas to detect dark pixels
+                const answers = new Array(60);
+                
+                // Calculate bubble positions based on video dimensions
+                // Assuming the answer sheet fills the camera view
+                const cellWidth = width / 24;
+                const cellHeight = height / 15;
+                
+                // For each question (1-60), check the 5 options (A-E)
+                for (let q = 0; q < 60; q++) {
+                    const row = Math.floor(q / 4);
+                    let colRegion;
+                    
+                    if (q % 4 === 0) colRegion = 0; // Questions 1,5,9... in col 0
+                    else if (q % 4 === 1) colRegion = 1; // Questions 2,6,10... in col 6
+                    else if (q % 4 === 2) colRegion = 2; // Questions 3,7,11... in col 12
+                    else colRegion = 3; // Questions 4,8,12... in col 18
+                    
+                    // Calculate the base column for this question
+                    const baseCol = colRegion * 6; // 0, 6, 12, 18
+                    
+                    // Check each option (A-E) for this question
+                    for (let opt = 0; opt < 5; opt++) {
+                        // Calculate bubble position
+                        const bubbleCol = baseCol + opt + 1; // Options start at col+1
+                        const bubbleRow = row;
+                        
+                        // Calculate pixel coordinates for this bubble
+                        const x = Math.floor(bubbleCol * cellWidth + cellWidth * 0.5);
+                        const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
+                        
+                        // Sample a small area around the bubble center
+                        const sampleSize = 10;
+                        let darkPixelCount = 0;
+                        let totalPixelCount = 0;
+                        
+                        for (let dx = -sampleSize; dx <= sampleSize; dx++) {
+                            for (let dy = -sampleSize; dy <= sampleSize; dy++) {
+                                if (dx*dx + dy*dy > sampleSize*sampleSize) continue; // Circular sample
+                                
+                                const px = x + dx;
+                                const py = y + dy;
+                                
+                                if (px >= 0 && px < width && py >= 0 && py < height) {
+                                    const idx = (py * width + px) * 4;
+                                    const r = data[idx];
+                                    const g = data[idx + 1];
+                                    const b = data[idx + 2];
+                                    
+                                    // Calculate luminance (perceived brightness)
+                                    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                                    
+                                    // If luminance is below threshold, it's a dark pixel
+                                    if (luminance < 100) { // Adjust threshold as needed
+                                        darkPixelCount++;
+                                    }
+                                    totalPixelCount++;
+                                }
+                            }
+                        }
+                        
+                        // If a significant portion of the sample area is dark, consider it shaded
+                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) {
+                            // Determine which option this is
+                            const option = String.fromCharCode(65 + opt); // A, B, C, D, E
+                            answers[q] = option;
+                            break; // Move to next question after finding one answer
+                        }
+                    }
+                    
+                    // If no option was selected, mark as unanswered
+                    if (!answers[q]) {
+                        answers[q] = 'X'; // X for unanswered
                     }
                 }
                 
@@ -698,6 +786,8 @@
                 
                 // Mark detected answers
                 answers.forEach((answer, index) => {
+                    if (answer === 'X') return; // Skip unanswered questions
+                    
                     const questionNum = index + 1;
                     const option = answer;
                     
