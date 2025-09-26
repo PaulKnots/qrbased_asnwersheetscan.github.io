@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Optimized Answer Sheet Scanner</title>
+    <title>Final Optimized Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -341,7 +341,7 @@
             display: grid;
             grid-template-columns: repeat(24, 1fr);
             gap: 1px;
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 20px auto;
             border: 1px solid #ddd;
             background: #f8f9fa;
@@ -408,8 +408,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Optimized Answer Sheet Scanner</h1>
-            <p class="subtitle">Compact grid with 6mm cell height for better scanning experience</p>
+            <h1>Final Optimized Answer Sheet Scanner</h1>
+            <p class="subtitle">Wider grid with precise alignment for all 15 rows</p>
         </header>
         
         <div class="instructions">
@@ -771,7 +771,7 @@
                         const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
                         
                         // Sample a small area around the bubble center
-                        const sampleSize = 10; // Reduced sample size for 6mm cells
+                        const sampleSize = 8; // Further reduced sample size for better precision
                         let darkPixelCount = 0;
                         let totalPixelCount = 0;
                         
@@ -792,7 +792,7 @@
                                     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                                     
                                     // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 110) { // Adjusted threshold for 6mm cells
+                                    if (luminance < 105) { // Further adjusted threshold
                                         darkPixelCount++;
                                     }
                                     totalPixelCount++;
@@ -801,7 +801,7 @@
                         }
                         
                         // If a significant portion of the sample area is dark, consider it shaded
-                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) { // Maintained detection threshold
+                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.45) { // Increased threshold for better accuracy
                             // Determine which option this is
                             const option = String.fromCharCode(65 + opt); // A, B, C, D, E
                             answers[q] = option;
