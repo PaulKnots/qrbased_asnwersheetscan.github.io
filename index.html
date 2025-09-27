@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Corrected Answer Sheet Scanner</title>
+    <title>Automatic Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -126,45 +126,49 @@
             pointer-events: none;
         }
         
-        .corner {
+        .corner-marker {
             position: absolute;
             width: 40px;
             height: 40px;
-            border: 3px solid #e74c3c;
+            background: #2c3e50;
+            z-index: 10;
         }
         
         .corner-tl {
             top: 20px;
             left: 20px;
-            border-right: none;
-            border-bottom: none;
         }
         
         .corner-tr {
             top: 20px;
             right: 20px;
-            border-left: none;
-            border-bottom: none;
         }
         
         .corner-bl {
             bottom: 20px;
             left: 20px;
-            border-right: none;
-            border-top: none;
         }
         
-        .corner-br {
-            bottom: 20px;
-            right: 20px;
-            border-left: none;
-            border-top: none;
-        }
-        
-        .guide {
+        .scanning-area {
             position: absolute;
-            border: 2px dashed #e74c3c;
+            border: 2px solid #e74c3c;
             background: rgba(231, 76, 60, 0.1);
+            pointer-events: none;
+        }
+        
+        .marker-indicator {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #2ecc71;
+            background: rgba(46, 204, 113, 0.2);
+            z-index: 5;
+            display: none;
+        }
+        
+        .marker-detected {
+            display: block !important;
         }
         
         .controls {
@@ -255,6 +259,11 @@
         .status.error {
             background: #fadbd8;
             color: #c0392b;
+        }
+        
+        .status.waiting {
+            background: #e8f6f3;
+            color: #16a085;
         }
         
         .answer-key {
@@ -393,6 +402,41 @@
             font-size: 0.9rem;
         }
         
+        .marker-size-info {
+            background: #e8f4fc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        .marker-size-info h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .marker-size-info ul {
+            padding-left: 20px;
+        }
+        
+        .marker-size-info li {
+            margin-bottom: 8px;
+        }
+        
+        .auto-scan-indicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(46, 204, 113, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 20;
+            display: none;
+        }
+        
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column;
@@ -408,19 +452,30 @@
 <body>
     <div class="container">
         <header>
-            <h1>Corrected Answer Sheet Scanner</h1>
-            <p class="subtitle">1-15 down first column, 16-30 down 7th, 31-45 down 13th, 46-60 down 19th</p>
+            <h1>Automatic Answer Sheet Scanner</h1>
+            <p class="subtitle">Automatically scans when all corner markers are detected</p>
         </header>
         
         <div class="instructions">
             <h3>How to Use:</h3>
             <ol>
                 <li>Click "Start Camera" to allow camera access</li>
-                <li>Align the answer sheet with the corner guides and question column guides</li>
+                <li>Position the answer sheet with corner markers visible</li>
+                <li>App will automatically scan when all 3 markers are detected</li>
                 <li>Enter the correct answers in the format "A,B,C,D,E,A,C,B..." (60 answers)</li>
-                <li>Click "Scan Answer Sheet" to process the current frame</li>
                 <li>Results will update automatically</li>
             </ol>
+        </div>
+        
+        <div class="marker-size-info">
+            <h3>Optimal Corner Marker Size:</h3>
+            <ul>
+                <li><strong>Recommended size:</strong> 12mm × 12mm (45px at 96 DPI)</li>
+                <li><strong>Minimum size:</strong> 8mm × 8mm (30px at 96 DPI)</li>
+                <li><strong>Maximum size:</strong> 20mm × 20mm (75px at 96 DPI)</li>
+                <li><strong>Color:</strong> Solid black (#000000) for high contrast</li>
+                <li><strong>Shape:</strong> Square with sharp corners for precise detection</li>
+            </ul>
         </div>
         
         <div class="app-container">
@@ -437,10 +492,14 @@
                     </div>
                     
                     <div class="overlay" id="overlay">
-                        <div class="corner corner-tl"></div>
-                        <div class="corner corner-tr"></div>
-                        <div class="corner corner-bl"></div>
-                        <div class="corner corner-br"></div>
+                        <div class="corner-marker corner-tl"></div>
+                        <div class="corner-marker corner-tr"></div>
+                        <div class="corner-marker corner-bl"></div>
+                        <div class="scanning-area" id="scanning-area"></div>
+                        <div class="marker-indicator" id="marker-tl"></div>
+                        <div class="marker-indicator" id="marker-tr"></div>
+                        <div class="marker-indicator" id="marker-bl"></div>
+                        <div class="auto-scan-indicator" id="auto-scan-indicator">Auto-Scanning...</div>
                     </div>
                 </div>
                 
@@ -451,7 +510,7 @@
                 </div>
                 
                 <div class="processing-info">
-                    <p><strong>Processing Info:</strong> Align answer sheet with corner and column guides for best results</p>
+                    <p><strong>Processing Info:</strong> Position answer sheet with corner markers visible</p>
                 </div>
                 
                 <div class="controls">
@@ -532,6 +591,13 @@
             const progressValue = document.getElementById('progress-value');
             const detectionGrid = document.getElementById('detection-grid');
             const overlay = document.getElementById('overlay');
+            const scanningArea = document.getElementById('scanning-area');
+            const autoScanIndicator = document.getElementById('auto-scan-indicator');
+            
+            // Marker indicators
+            const markerTl = document.getElementById('marker-tl');
+            const markerTr = document.getElementById('marker-tr');
+            const markerBl = document.getElementById('marker-bl');
             
             // Elements for results
             const totalQuestionsEl = document.getElementById('total-questions');
@@ -594,34 +660,8 @@
                 }
             }
             
-            // Create alignment guides
-            function createGuides() {
-                // Remove existing guides
-                const existingGuides = document.querySelectorAll('.guide');
-                existingGuides.forEach(guide => guide.remove());
-                
-                // Create question column guides (columns 0, 6, 12, 18)
-                const colPositions = [0, 6, 12, 18];
-                const cellWidth = 100 / 24; // Percentage of total width
-                const cellHeight = 100 / 15; // Percentage of total height
-                
-                colPositions.forEach(col => {
-                    const guide = document.createElement('div');
-                    guide.className = 'guide';
-                    guide.style.left = `${col * cellWidth}%`;
-                    guide.style.top = '0%';
-                    guide.style.width = `${cellWidth}%`;
-                    guide.style.height = '100%';
-                    guide.style.borderLeft = '2px solid #e74c3c';
-                    guide.style.borderRight = '2px solid #e74c3c';
-                    guide.title = `Question Column ${col}`;
-                    overlay.appendChild(guide);
-                });
-            }
-            
-            // Initialize the grid and guides
+            // Initialize the grid
             createDetectionGrid();
-            createGuides();
             
             // Get camera access when button is clicked
             requestCameraBtn.addEventListener('click', async function() {
@@ -638,11 +678,11 @@
                     cameraPlaceholder.style.display = 'none';
                     requestCameraBtn.style.display = 'none';
                     scanBtn.disabled = false;
-                    statusDiv.textContent = 'Camera ready. Align answer sheet with corner and column guides.';
-                    statusDiv.className = 'status ready';
+                    statusDiv.textContent = 'Position answer sheet with corner markers visible. Auto-scanning will start when all 3 markers are detected.';
+                    statusDiv.className = 'status waiting';
                     
-                    // Create guides after camera starts
-                    setTimeout(createGuides, 500);
+                    // Start the auto-detection process
+                    startAutoDetection();
                 } catch (err) {
                     console.error("Error accessing camera: ", err);
                     statusDiv.textContent = 'Camera access denied. Please enable camera to scan answer sheets.';
@@ -650,7 +690,136 @@
                 }
             });
             
-            // Scan button functionality
+            // Auto-detection process
+            function startAutoDetection() {
+                const detectionInterval = setInterval(() => {
+                    // Process the current video frame to detect markers
+                    const context = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Draw video frame to canvas
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Detect markers in the image
+                    const markersDetected = detectMarkers(context, canvas.width, canvas.height);
+                    
+                    // Update marker indicators
+                    if (markersDetected.tl) {
+                        markerTl.classList.add('marker-detected');
+                        markerTl.style.top = `${markersDetected.tl.y}px`;
+                        markerTl.style.left = `${markersDetected.tl.x}px`;
+                    } else {
+                        markerTl.classList.remove('marker-detected');
+                    }
+                    
+                    if (markersDetected.tr) {
+                        markerTr.classList.add('marker-detected');
+                        markerTr.style.top = `${markersDetected.tr.y}px`;
+                        markerTr.style.left = `${markersDetected.tr.x}px`;
+                    } else {
+                        markerTr.classList.remove('marker-detected');
+                    }
+                    
+                    if (markersDetected.bl) {
+                        markerBl.classList.add('marker-detected');
+                        markerBl.style.top = `${markersDetected.bl.y}px`;
+                        markerBl.style.left = `${markersDetected.bl.x}px`;
+                    } else {
+                        markerBl.classList.remove('marker-detected');
+                    }
+                    
+                    // If all markers are detected, auto-scan
+                    if (markersDetected.tl && markersDetected.tr && markersDetected.bl) {
+                        clearInterval(detectionInterval);
+                        autoScanIndicator.style.display = 'block';
+                        statusDiv.textContent = 'Auto-scanning answer sheet...';
+                        statusDiv.className = 'status processing';
+                        
+                        // Process the current frame for answers
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        const detectedAnswers = detectShadedBubbles(imageData);
+                        
+                        // Update the grid with detected answers
+                        updateGridWithAnswers(detectedAnswers);
+                        
+                        // Calculate results if answer key is provided
+                        const answerKey = answerKeyInput.value.toUpperCase().split(',');
+                        if (answerKey.length === 60) {
+                            calculateResults(answerKey, detectedAnswers);
+                            statusDiv.textContent = 'Answer sheet processed successfully!';
+                            statusDiv.className = 'status success';
+                        } else {
+                            statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
+                            statusDiv.className = 'status error';
+                        }
+                        
+                        // Hide the auto-scan indicator after 2 seconds
+                        setTimeout(() => {
+                            autoScanIndicator.style.display = 'none';
+                        }, 2000);
+                    }
+                }, 300); // Check every 300ms
+            }
+            
+            // Detect markers in the image
+            function detectMarkers(context, width, height) {
+                const imageData = context.getImageData(0, 0, width, height);
+                const data = imageData.data;
+                
+                // Define approximate positions for markers (based on expected layout)
+                const tlArea = { x: 0, y: 0, w: width * 0.1, h: height * 0.1 };
+                const trArea = { x: width * 0.9, y: 0, w: width * 0.1, h: height * 0.1 };
+                const blArea = { x: 0, y: height * 0.9, w: width * 0.1, h: height * 0.1 };
+                
+                const markers = {
+                    tl: detectMarkerInArea(data, width, height, tlArea),
+                    tr: detectMarkerInArea(data, width, height, trArea),
+                    bl: detectMarkerInArea(data, width, height, blArea)
+                };
+                
+                return markers;
+            }
+            
+            // Detect a marker in a specific area
+            function detectMarkerInArea(data, width, height, area) {
+                const { x, y, w, h } = area;
+                const sampleSize = 10; // Size of sample area
+                let darkPixelCount = 0;
+                let totalPixelCount = 0;
+                
+                for (let dx = 0; dx < w; dx += sampleSize) {
+                    for (let dy = 0; dy < h; dy += sampleSize) {
+                        const px = Math.floor(x + dx);
+                        const py = Math.floor(y + dy);
+                        
+                        if (px >= 0 && px < width && py >= 0 && py < height) {
+                            const idx = (py * width + px) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            
+                            // Calculate luminance (perceived brightness)
+                            const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                            
+                            // If luminance is below threshold, it's a dark pixel
+                            if (luminance < 50) { // Dark threshold
+                                darkPixelCount++;
+                            }
+                            totalPixelCount++;
+                        }
+                    }
+                }
+                
+                // If a significant portion of the sample area is dark, consider it a marker
+                if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.6) {
+                    return { x: x + w/2, y: y + h/2 }; // Return center position
+                }
+                
+                return null;
+            }
+            
+            // Scan button functionality (manual scan)
             scanBtn.addEventListener('click', function() {
                 if (!video.srcObject) {
                     statusDiv.textContent = 'Please start the camera first.';
@@ -703,7 +872,11 @@
                 
                 // Reset grid
                 createDetectionGrid();
-                createGuides();
+                
+                // Reset marker indicators
+                markerTl.classList.remove('marker-detected');
+                markerTr.classList.remove('marker-detected');
+                markerBl.classList.remove('marker-detected');
             });
             
             // Save results functionality
@@ -901,7 +1074,7 @@
             }
             
             // Initialize with a sample answer key
-            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
+            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E;
         });
     </script>
 </body>
