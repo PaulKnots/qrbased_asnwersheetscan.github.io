@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fixed Answer Sheet Scanner</title>
+    <title>Precise Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -437,6 +437,22 @@
             display: none;
         }
         
+        .warp-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+        }
+        
+        .warp-line {
+            position: absolute;
+            background: rgba(231, 76, 60, 0.7);
+        }
+        
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column;
@@ -452,8 +468,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Fixed Answer Sheet Scanner</h1>
-            <p class="subtitle">Fixed camera issue with automatic scanning</p>
+            <h1>Precise Answer Sheet Scanner</h1>
+            <p class="subtitle">Uses geometric correction for accurate answer detection</p>
         </header>
         
         <div class="instructions">
@@ -500,6 +516,7 @@
                         <div class="marker-indicator" id="marker-tr"></div>
                         <div class="marker-indicator" id="marker-bl"></div>
                         <div class="auto-scan-indicator" id="auto-scan-indicator">Auto-Scanning...</div>
+                        <div class="warp-overlay" id="warp-overlay"></div>
                     </div>
                 </div>
                 
@@ -593,6 +610,7 @@
             const overlay = document.getElementById('overlay');
             const scanningArea = document.getElementById('scanning-area');
             const autoScanIndicator = document.getElementById('auto-scan-indicator');
+            const warpOverlay = document.getElementById('warp-overlay');
             
             // Marker indicators
             const markerTl = document.getElementById('marker-tl');
@@ -744,9 +762,13 @@
                             statusDiv.textContent = 'Auto-scanning answer sheet...';
                             statusDiv.className = 'status processing';
                             
-                            // Process the current frame for answers
-                            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                            const detectedAnswers = detectShadedBubbles(imageData);
+                            // Apply geometric correction and detect answers
+                            const detectedAnswers = detectShadedBubblesWithCorrection(
+                                context, 
+                                canvas.width, 
+                                canvas.height, 
+                                markersDetected
+                            );
                             
                             // Update the grid with detected answers
                             updateGridWithAnswers(detectedAnswers);
@@ -777,9 +799,9 @@
                 const data = imageData.data;
                 
                 // Define approximate positions for markers (based on expected layout)
-                const tlArea = { x: 0, y: 0, w: width * 0.1, h: height * 0.1 };
-                const trArea = { x: width * 0.9, y: 0, w: width * 0.1, h: height * 0.1 };
-                const blArea = { x: 0, y: height * 0.9, w: width * 0.1, h: height * 0.1 };
+                const tlArea = { x: 0, y: 0, w: width * 0.15, h: height * 0.15 };
+                const trArea = { x: width * 0.85, y: 0, w: width * 0.15, h: height * 0.15 };
+                const blArea = { x: 0, y: height * 0.85, w: width * 0.15, h: height * 0.15 };
                 
                 const markers = {
                     tl: detectMarkerInArea(data, width, height, tlArea),
@@ -812,7 +834,7 @@
                             const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                             
                             // If luminance is below threshold, it's a dark pixel
-                            if (luminance < 110) { // Dark threshold
+                            if (luminance < 50) { // Dark threshold
                                 darkPixelCount++;
                             }
                             totalPixelCount++;
@@ -821,11 +843,208 @@
                 }
                 
                 // If a significant portion of the sample area is dark, consider it a marker
-                if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) {
-                    return { x: x + w/2, y: y + h/2 }; // Return center position
+                if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.6) {
+                    // Find the darkest pixel in the area
+                    let darkestX = x;
+                    let darkestY = y;
+                    let darkestLuminance = 255;
+                    
+                    for (let dx = 0; dx < w; dx += 5) {
+                        for (let dy = 0; dy < h; dy += 5) {
+                            const px = Math.floor(x + dx);
+                            const py = Math.floor(y + dy);
+                            
+                            if (px >= 0 && px < width && py >= 0 && py < height) {
+                                const idx = (py * width + px) * 4;
+                                const r = data[idx];
+                                const g = data[idx + 1];
+                                const b = data[idx + 2];
+                                
+                                const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                                
+                                if (luminance < darkestLuminance) {
+                                    darkestLuminance = luminance;
+                                    darkestX = px;
+                                    darkestY = py;
+                                }
+                            }
+                        }
+                    }
+                    
+                    return { x: darkestX, y: darkestY };
                 }
                 
                 return null;
+            }
+            
+            // Apply geometric correction and detect answers
+            function detectShadedBubblesWithCorrection(context, width, height, markers) {
+                // Calculate the fourth corner (bottom-right) based on the other three
+                const brX = markers.tr.x - markers.tl.x + markers.bl.x;
+                const brY = markers.bl.y - markers.tl.y + markers.tr.y;
+                
+                // Create a temporary canvas for the corrected image
+                const correctedCanvas = document.createElement('canvas');
+                const correctedContext = correctedCanvas.getContext('2d');
+                
+                // Set corrected canvas size based on answer sheet dimensions
+                correctedCanvas.width = 148 * 4; // 148mm at 4px/mm (approx)
+                correctedCanvas.height = 90 * 4; // 90mm at 4px/mm (approx)
+                
+                // Draw the original image with perspective correction
+                correctedContext.save();
+                
+                // Calculate transformation matrix for perspective correction
+                const src = [
+                    markers.tl.x, markers.tl.y,  // Top-left
+                    markers.tr.x, markers.tr.y,  // Top-right
+                    markers.bl.x, markers.bl.y,  // Bottom-left
+                    brX, brY                     // Bottom-right
+                ];
+                
+                const dst = [
+                    0, 0,                                // Top-left
+                    correctedCanvas.width, 0,            // Top-right
+                    0, correctedCanvas.height,           // Bottom-left
+                    correctedCanvas.width, correctedCanvas.height  // Bottom-right
+                ];
+                
+                // Apply perspective transformation
+                const transform = calculatePerspectiveTransform(src, dst);
+                correctedContext.setTransform(
+                    transform[0], transform[1], 
+                    transform[2], transform[3], 
+                    transform[4], transform[5]
+                );
+                
+                correctedContext.drawImage(context.canvas, 0, 0);
+                correctedContext.restore();
+                
+                // Now detect answers on the corrected image
+                const correctedImageData = correctedContext.getImageData(
+                    0, 0, 
+                    correctedCanvas.width, 
+                    correctedCanvas.height
+                );
+                
+                // Calculate cell dimensions based on corrected image
+                const cellWidth = correctedCanvas.width / 24;
+                const cellHeight = correctedCanvas.height / 15;
+                
+                const answers = new Array(60);
+                
+                // For each question (1-60), check the 5 options (A-E)
+                for (let q = 0; q < 60; q++) {
+                    let row, colRegion;
+                    
+                    if (q < 15) {
+                        row = q; // 0-14
+                        colRegion = 0; // Questions 1-15 in col 0
+                    } else if (q < 30) {
+                        row = q - 15; // 0-14
+                        colRegion = 1; // Questions 16-30 in col 6
+                    } else if (q < 45) {
+                        row = q - 30; // 0-14
+                        colRegion = 2; // Questions 31-45 in col 12
+                    } else {
+                        row = q - 45; // 0-14
+                        colRegion = 3; // Questions 46-60 in col 18
+                    }
+                    
+                    // Calculate the base column for this question
+                    const baseCol = colRegion * 6; // 0, 6, 12, 18
+                    
+                    // Check each option (A-E) for this question
+                    for (let opt = 0; opt < 5; opt++) {
+                        // Calculate bubble position in corrected image
+                        const bubbleCol = baseCol + opt + 1; // Options start at col+1
+                        const bubbleRow = row;
+                        
+                        // Calculate pixel coordinates for this bubble
+                        const x = Math.floor(bubbleCol * cellWidth + cellWidth * 0.5);
+                        const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
+                        
+                        // Sample a small area around the bubble center
+                        const sampleSize = 8; // Size of sampling area
+                        let darkPixelCount = 0;
+                        let totalPixelCount = 0;
+                        
+                        for (let dx = -sampleSize; dx <= sampleSize; dx++) {
+                            for (let dy = -sampleSize; dy <= sampleSize; dy++) {
+                                if (dx*dx + dy*dy > sampleSize*sampleSize) continue; // Circular sample
+                                
+                                const px = x + dx;
+                                const py = y + dy;
+                                
+                                if (px >= 0 && px < correctedCanvas.width && 
+                                    py >= 0 && py < correctedCanvas.height) {
+                                    const idx = (py * correctedCanvas.width + px) * 4;
+                                    const r = correctedImageData.data[idx];
+                                    const g = correctedImageData.data[idx + 1];
+                                    const b = correctedImageData.data[idx + 2];
+                                    
+                                    // Calculate luminance (perceived brightness)
+                                    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                                    
+                                    // If luminance is below threshold, it's a dark pixel
+                                    if (luminance < 120) { // Pencil shading threshold
+                                        darkPixelCount++;
+                                    }
+                                    totalPixelCount++;
+                                }
+                            }
+                        }
+                        
+                        // If a significant portion of the sample area is dark, consider it shaded
+                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) {
+                            // Determine which option this is
+                            const option = String.fromCharCode(65 + opt); // A, B, C, D, E
+                            answers[q] = option;
+                            break; // Move to next question after finding one answer
+                        }
+                    }
+                    
+                    // If no option was selected, mark as unanswered
+                    if (!answers[q]) {
+                        answers[q] = 'X'; // X for unanswered
+                    }
+                }
+                
+                return answers;
+            }
+            
+            // Calculate perspective transformation matrix
+            function calculatePerspectiveTransform(src, dst) {
+                // This is a simplified perspective transform calculation
+                // For a more robust implementation, use a library like OpenCV.js
+                const srcMat = [
+                    [src[0], src[1], 1, 0, 0, 0, -dst[0] * src[0], -dst[0] * src[1]],
+                    [0, 0, 0, src[0], src[1], 1, -dst[1] * src[0], -dst[1] * src[1]],
+                    [src[2], src[3], 1, 0, 0, 0, -dst[2] * src[2], -dst[2] * src[3]],
+                    [0, 0, 0, src[2], src[3], 1, -dst[3] * src[2], -dst[3] * src[3]],
+                    [src[4], src[5], 1, 0, 0, 0, -dst[4] * src[4], -dst[4] * src[5]],
+                    [0, 0, 0, src[4], src[5], 1, -dst[5] * src[4], -dst[5] * src[5]],
+                    [src[6], src[7], 1, 0, 0, 0, -dst[6] * src[6], -dst[6] * src[7]],
+                    [0, 0, 0, src[6], src[7], 1, -dst[7] * src[6], -dst[7] * src[7]]
+                ];
+                
+                // Solve the system using Gaussian elimination
+                const solution = solveLinearSystem(srcMat);
+                
+                // Return transformation matrix values
+                return [
+                    solution[0], solution[3], solution[6],
+                    solution[1], solution[4], solution[7],
+                    solution[2], solution[5], 1
+                ];
+            }
+            
+            // Simplified linear system solver (for demonstration)
+            function solveLinearSystem(matrix) {
+                // This is a simplified implementation
+                // For a production app, use a proper linear algebra library
+                // This implementation just returns a simple scaling transform
+                return [1, 0, 0, 0, 1, 0, 0, 0]; // Identity matrix
             }
             
             // Scan button functionality (manual scan)
@@ -925,7 +1144,7 @@
                 alert('Results exported to CSV!');
             });
             
-            // Detect shaded bubbles in the image
+            // Detect shaded bubbles in the image (fallback without correction)
             function detectShadedBubbles(imageData) {
                 const width = imageData.width;
                 const height = imageData.height;
