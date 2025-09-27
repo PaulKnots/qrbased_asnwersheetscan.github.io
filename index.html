@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatic Answer Sheet Scanner</title>
+    <title>Fixed Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -452,8 +452,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Automatic Answer Sheet Scanner</h1>
-            <p class="subtitle">Automatically scans when all corner markers are detected</p>
+            <h1>Fixed Answer Sheet Scanner</h1>
+            <p class="subtitle">Fixed camera issue with automatic scanning</p>
         </header>
         
         <div class="instructions">
@@ -673,16 +673,22 @@
                             height: { ideal: 720 }
                         } 
                     });
-                    video.srcObject = stream;
-                    video.style.display = 'block';
-                    cameraPlaceholder.style.display = 'none';
-                    requestCameraBtn.style.display = 'none';
-                    scanBtn.disabled = false;
-                    statusDiv.textContent = 'Position answer sheet with corner markers visible. Auto-scanning will start when all 3 markers are detected.';
-                    statusDiv.className = 'status waiting';
                     
-                    // Start the auto-detection process
-                    startAutoDetection();
+                    // Set the stream to the video element
+                    video.srcObject = stream;
+                    
+                    // Wait for the video to be loaded before showing it
+                    video.onloadedmetadata = function() {
+                        video.style.display = 'block';
+                        cameraPlaceholder.style.display = 'none';
+                        requestCameraBtn.style.display = 'none';
+                        scanBtn.disabled = false;
+                        statusDiv.textContent = 'Position answer sheet with corner markers visible. Auto-scanning will start when all 3 markers are detected.';
+                        statusDiv.className = 'status waiting';
+                        
+                        // Start the auto-detection process after camera is ready
+                        setTimeout(startAutoDetection, 1000);
+                    };
                 } catch (err) {
                     console.error("Error accessing camera: ", err);
                     statusDiv.textContent = 'Camera access denied. Please enable camera to scan answer sheets.';
@@ -693,71 +699,74 @@
             // Auto-detection process
             function startAutoDetection() {
                 const detectionInterval = setInterval(() => {
-                    // Process the current video frame to detect markers
-                    const context = canvas.getContext('2d');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    
-                    // Draw video frame to canvas
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    // Detect markers in the image
-                    const markersDetected = detectMarkers(context, canvas.width, canvas.height);
-                    
-                    // Update marker indicators
-                    if (markersDetected.tl) {
-                        markerTl.classList.add('marker-detected');
-                        markerTl.style.top = `${markersDetected.tl.y}px`;
-                        markerTl.style.left = `${markersDetected.tl.x}px`;
-                    } else {
-                        markerTl.classList.remove('marker-detected');
-                    }
-                    
-                    if (markersDetected.tr) {
-                        markerTr.classList.add('marker-detected');
-                        markerTr.style.top = `${markersDetected.tr.y}px`;
-                        markerTr.style.left = `${markersDetected.tr.x}px`;
-                    } else {
-                        markerTr.classList.remove('marker-detected');
-                    }
-                    
-                    if (markersDetected.bl) {
-                        markerBl.classList.add('marker-detected');
-                        markerBl.style.top = `${markersDetected.bl.y}px`;
-                        markerBl.style.left = `${markersDetected.bl.x}px`;
-                    } else {
-                        markerBl.classList.remove('marker-detected');
-                    }
-                    
-                    // If all markers are detected, auto-scan
-                    if (markersDetected.tl && markersDetected.tr && markersDetected.bl) {
-                        clearInterval(detectionInterval);
-                        autoScanIndicator.style.display = 'block';
-                        statusDiv.textContent = 'Auto-scanning answer sheet...';
-                        statusDiv.className = 'status processing';
+                    // Only run if video is playing
+                    if (video.srcObject && video.readyState === 4) {
+                        // Process the current video frame to detect markers
+                        const context = canvas.getContext('2d');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
                         
-                        // Process the current frame for answers
-                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                        const detectedAnswers = detectShadedBubbles(imageData);
+                        // Draw video frame to canvas
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
                         
-                        // Update the grid with detected answers
-                        updateGridWithAnswers(detectedAnswers);
+                        // Detect markers in the image
+                        const markersDetected = detectMarkers(context, canvas.width, canvas.height);
                         
-                        // Calculate results if answer key is provided
-                        const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                        if (answerKey.length === 60) {
-                            calculateResults(answerKey, detectedAnswers);
-                            statusDiv.textContent = 'Answer sheet processed successfully!';
-                            statusDiv.className = 'status success';
+                        // Update marker indicators
+                        if (markersDetected.tl) {
+                            markerTl.classList.add('marker-detected');
+                            markerTl.style.top = `${markersDetected.tl.y}px`;
+                            markerTl.style.left = `${markersDetected.tl.x}px`;
                         } else {
-                            statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
-                            statusDiv.className = 'status error';
+                            markerTl.classList.remove('marker-detected');
                         }
                         
-                        // Hide the auto-scan indicator after 2 seconds
-                        setTimeout(() => {
-                            autoScanIndicator.style.display = 'none';
-                        }, 2000);
+                        if (markersDetected.tr) {
+                            markerTr.classList.add('marker-detected');
+                            markerTr.style.top = `${markersDetected.tr.y}px`;
+                            markerTr.style.left = `${markersDetected.tr.x}px`;
+                        } else {
+                            markerTr.classList.remove('marker-detected');
+                        }
+                        
+                        if (markersDetected.bl) {
+                            markerBl.classList.add('marker-detected');
+                            markerBl.style.top = `${markersDetected.bl.y}px`;
+                            markerBl.style.left = `${markersDetected.bl.x}px`;
+                        } else {
+                            markerBl.classList.remove('marker-detected');
+                        }
+                        
+                        // If all markers are detected, auto-scan
+                        if (markersDetected.tl && markersDetected.tr && markersDetected.bl) {
+                            clearInterval(detectionInterval);
+                            autoScanIndicator.style.display = 'block';
+                            statusDiv.textContent = 'Auto-scanning answer sheet...';
+                            statusDiv.className = 'status processing';
+                            
+                            // Process the current frame for answers
+                            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                            const detectedAnswers = detectShadedBubbles(imageData);
+                            
+                            // Update the grid with detected answers
+                            updateGridWithAnswers(detectedAnswers);
+                            
+                            // Calculate results if answer key is provided
+                            const answerKey = answerKeyInput.value.toUpperCase().split(',');
+                            if (answerKey.length === 60) {
+                                calculateResults(answerKey, detectedAnswers);
+                                statusDiv.textContent = 'Answer sheet processed successfully!';
+                                statusDiv.className = 'status success';
+                            } else {
+                                statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
+                                statusDiv.className = 'status error';
+                            }
+                            
+                            // Hide the auto-scan indicator after 2 seconds
+                            setTimeout(() => {
+                                autoScanIndicator.style.display = 'none';
+                            }, 2000);
+                        }
                     }
                 }, 300); // Check every 300ms
             }
@@ -1074,7 +1083,7 @@
             }
             
             // Initialize with a sample answer key
-            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E;
+            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
         });
     </script>
 </body>
