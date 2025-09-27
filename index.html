@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Optimized Answer Sheet Scanner</title>
+  <title>Answer Sheet Scanner</title>
   <style>
     body { font-family: Arial; text-align: center; padding: 20px; }
     #video { width: 100%; max-width: 500px; border: 2px solid #ccc; }
@@ -11,6 +11,8 @@
     .answers { font-family: monospace; white-space: pre-line; }
     .correct { color: green; }
     .incorrect { color: red; }
+    .section { margin: 10px 0; padding: 5px; border: 1px solid #ccc; }
+    .controls { margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -19,24 +21,30 @@
   <canvas id="canvas" style="display:none;"></canvas>
   
   <div id="input">
-    <label>Enter Answer Key (e.g., ABCDE...):</label>
+    <label>Enter Answer Key (60 chars):</label>
     <input type="text" id="answerKey" maxlength="60" placeholder="ABCDE...">
     <button onclick="setKey()">Set Key</button>
   </div>
   
-  <div id="result">Point camera at answer sheet...</div>
+  <div class="controls">
+    <button onclick="startScan()">Start Scanning</button>
+    <button onclick="saveResult()">Save Result</button>
+  </div>
+  
+  <div id="result">Click "Start Scanning" to begin...</div>
   <div id="error"></div>
 
   <script>
-    // Get DOM elements
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const result = document.getElementById('result');
     const errorDiv = document.getElementById('error');
     let answerKey = '';
+    let currentAnswers = null;
+    let scanning = false;
 
-    // Set answer key from input
+    // Set answer key
     function setKey() {
       answerKey = document.getElementById('answerKey').value.toUpperCase();
       if (answerKey.length !== 60) {
@@ -46,41 +54,67 @@
       errorDiv.textContent = '';
     }
 
-    // Access camera
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        errorDiv.textContent = `Camera error: ${err.message}`;
-      });
+    // Start scanning
+    function startScan() {
+      if (!answerKey) {
+        errorDiv.textContent = 'Set answer key first!';
+        return;
+      }
+      scanning = true;
+      currentAnswers = null;
+      result.innerHTML = 'Scanning...';
+      scan();
+    }
 
-    // Start scanning when video loads
+    // Stop scanning and save result
+    function saveResult() {
+      if (!currentAnswers) {
+        errorDiv.textContent = 'No results to save!';
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + 
+        encodeURIComponent(JSON.stringify({
+          answers: currentAnswers,
+          score: calculateScore(currentAnswers)
+        }));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `answers_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    // Camera access
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => video.srcObject = stream)
+      .catch(err => errorDiv.textContent = `Camera error: ${err.message}`);
+
     video.addEventListener('loadedmetadata', () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      requestAnimationFrame(scan);
     });
 
-    // Main scanning loop
+    // Main scanning function
     function scan() {
+      if (!scanning) return;
+      
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Draw current frame to canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-        // Process image and detect answers
+        // Process image
         const filteredData = removeGreenBackground(imageData);
         const answers = detectAnswers(filteredData);
         
-        if (answers) {
-          result.innerHTML = compareWithKey(answers);
+        if (answers && answers.length === 60) {
+          currentAnswers = answers;
+          result.innerHTML = displayResults(answers);
+          scanning = false; // Stop after one successful scan
         }
       }
-      requestAnimationFrame(scan);
+      if (scanning) requestAnimationFrame(scan);
     }
 
-    // Remove green background from image
+    // Remove green background
     function removeGreenBackground(imageData) {
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
@@ -91,43 +125,45 @@
         // Convert greenish pixels to grayscale
         if (g > r + 30 && g > b + 30) {
           const avg = (r + g + b) / 3;
-          data[i] = avg;     // R
-          data[i + 1] = avg; // G
-          data[i + 2] = avg; // B
+          data[i] = avg;
+          data[i + 1] = avg;
+          data[i + 2] = avg;
         }
       }
       return imageData;
     }
 
-    // Detect marked answers
+    // Detect answers in 4 sections
     function detectAnswers(imageData) {
       const ROWS = 15;
-      const COLS = 24;
-      const CELL_HEIGHT = 6 * 3; // 6mm scaled to pixels
-      const CELL_WIDTHS = Array(24).fill(6 * 3); // Default 6mm
-      [0, 6, 12, 18].forEach(i => CELL_WIDTHS[i] = 7 * 3); // Question columns
+      const SECTIONS = 4;
+      const OPTIONS = 5;
+      const CELL_HEIGHT = 6 * 3;
+      const CELL_WIDTH = 6 * 3;
+      const SECTION_WIDTH = 6 * 3; // Question + 5 options
 
       const answers = [];
-      for (let row = 0; row < ROWS; row++) {
-        for (let col = 1; col < COLS; col++) {
-          if ([6, 12, 18].includes(col)) continue; // Skip question columns
+      
+      for (let section = 0; section < SECTIONS; section++) {
+        for (let row = 0; row < ROWS; row++) {
+          for (let opt = 0; opt < OPTIONS; opt++) {
+            // Calculate bubble position
+            const x = 50 + section * SECTION_WIDTH + opt * CELL_WIDTH;
+            const y = 50 + row * CELL_HEIGHT;
 
-          // Calculate bubble center
-          const x = 50 + CELL_WIDTHS.slice(0, col).reduce((a, b) => a + b, 0);
-          const y = 50 + row * CELL_HEIGHT;
-
-          // Check if bubble is shaded
-          const brightness = getPixelBrightness(imageData, x, y);
-          if (brightness < 100) {
-            const option = String.fromCharCode(65 + (col - 1 - Math.floor(col / 6)));
-            answers.push(option);
+            // Check if bubble is shaded
+            const brightness = getPixelBrightness(imageData, x, y);
+            if (brightness < 100) {
+              const option = String.fromCharCode(65 + opt); // A-E
+              answers.push(option);
+            }
           }
         }
       }
-      return answers.slice(0, 60); // Only first 60 items
+      return answers.slice(0, 60);
     }
 
-    // Get brightness of a pixel
+    // Get pixel brightness
     function getPixelBrightness(imageData, x, y) {
       const index = (y * imageData.width + x) * 4;
       const r = imageData.data[index];
@@ -136,26 +172,46 @@
       return (r + g + b) / 3;
     }
 
-    // Compare answers with key
-    function compareWithKey(studentAnswers) {
+    // Display results in 4 sections
+    function displayResults(answers) {
       if (!answerKey) return 'Set answer key first!';
       
-      let score = 0;
-      let details = 'Results:\n';
-      
-      for (let i = 0; i < 60; i++) {
-        const student = studentAnswers[i] || ' ';
-        const correct = answerKey[i];
-        const isCorrect = student === correct;
+      let html = '';
+      for (let section = 0; section < 4; section++) {
+        const start = section * 15;
+        const end = start + 15;
+        const sectionAnswers = answers.slice(start, end);
+        const sectionKey = answerKey.slice(start, end);
         
-        if (isCorrect) score++;
+        let sectionHtml = `<div class="section">Section ${section + 1} (Q${start + 1}-Q${end})<br>`;
+        let score = 0;
         
-        details += `<span class="${isCorrect ? 'correct' : 'incorrect'}">
-          Q${i + 1}: ${student} (${correct}) ${isCorrect ? '✓' : '✗'}
-        </span>\n`;
+        for (let i = 0; i < 15; i++) {
+          const student = sectionAnswers[i] || ' ';
+          const correct = sectionKey[i];
+          const isCorrect = student === correct;
+          if (isCorrect) score++;
+          
+          sectionHtml += `<span class="${isCorrect ? 'correct' : 'incorrect'}">
+            Q${start + i + 1}: ${student} (${correct}) ${isCorrect ? '✓' : '✗'}
+          </span><br>`;
+        }
+        sectionHtml += `Score: ${score}/15</div>`;
+        html += sectionHtml;
       }
       
-      return `Score: ${score}/60\n${details}`;
+      const totalScore = calculateScore(answers);
+      html += `<br><b>Total Score: ${totalScore}/60</b>`;
+      return html;
+    }
+
+    // Calculate total score
+    function calculateScore(answers) {
+      let score = 0;
+      for (let i = 0; i < 60; i++) {
+        if (answers[i] === answerKey[i]) score++;
+      }
+      return score;
     }
   </script>
 </body>
