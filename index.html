@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Final Optimized Answer Sheet Scanner</title>
+    <title>Corrected Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -408,8 +408,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Final Optimized Answer Sheet Scanner</h1>
-            <p class="subtitle">Wider grid with precise alignment for all 15 rows</p>
+            <h1>Corrected Answer Sheet Scanner</h1>
+            <p class="subtitle">1-15 down first column, 16-30 down 7th, 31-45 down 13th, 46-60 down 19th</p>
         </header>
         
         <div class="instructions">
@@ -540,7 +540,7 @@
             const scorePercentageEl = document.getElementById('score-percentage');
             const gradeEl = document.getElementById('grade');
             
-            // Create the detection grid with proper formatting
+            // Create the detection grid with correct numbering
             function createDetectionGrid() {
                 detectionGrid.innerHTML = '';
                 
@@ -552,11 +552,14 @@
                         // Check if it's a question number column (1st, 7th, 13th, 19th)
                         if (col === 0 || col === 6 || col === 12 || col === 18) {
                             cell.classList.add('question-cell');
-                            // Calculate question number: row*4 + region + 1
-                            const region = col === 0 ? 0 : 
-                                         col === 6 ? 1 : 
-                                         col === 12 ? 2 : 3;
-                            const questionNum = row * 4 + region + 1;
+                            
+                            // Calculate question number based on column
+                            let questionNum;
+                            if (col === 0) questionNum = row + 1;        // 1-15
+                            else if (col === 6) questionNum = row + 16;   // 16-30
+                            else if (col === 12) questionNum = row + 31;  // 31-45
+                            else if (col === 18) questionNum = row + 46;  // 46-60
+                            
                             cell.textContent = questionNum;
                         } else {
                             // Option columns (A, B, C, D, E)
@@ -570,7 +573,15 @@
                             
                             if (option) {
                                 cell.innerHTML = `<div class="bubble"></div>`;
-                                cell.dataset.question = row * 4 + Math.floor(col/6) + 1;
+                                
+                                // Calculate question number based on column
+                                let questionNum;
+                                if (col < 6) questionNum = row + 1;        // 1-15
+                                else if (col < 12) questionNum = row + 16; // 16-30
+                                else if (col < 18) questionNum = row + 31; // 31-45
+                                else questionNum = row + 46;               // 46-60
+                                
+                                cell.dataset.question = questionNum;
                                 cell.dataset.option = option;
                             } else {
                                 // Unused column (between option sets)
@@ -749,13 +760,21 @@
                 
                 // For each question (1-60), check the 5 options (A-E)
                 for (let q = 0; q < 60; q++) {
-                    const row = Math.floor(q / 4);
-                    let colRegion;
+                    let row, colRegion;
                     
-                    if (q % 4 === 0) colRegion = 0; // Questions 1,5,9... in col 0
-                    else if (q % 4 === 1) colRegion = 1; // Questions 2,6,10... in col 6
-                    else if (q % 4 === 2) colRegion = 2; // Questions 3,7,11... in col 12
-                    else colRegion = 3; // Questions 4,8,12... in col 18
+                    if (q < 15) {
+                        row = q; // 0-14
+                        colRegion = 0; // Questions 1-15 in col 0
+                    } else if (q < 30) {
+                        row = q - 15; // 0-14
+                        colRegion = 1; // Questions 16-30 in col 6
+                    } else if (q < 45) {
+                        row = q - 30; // 0-14
+                        colRegion = 2; // Questions 31-45 in col 12
+                    } else {
+                        row = q - 45; // 0-14
+                        colRegion = 3; // Questions 46-60 in col 18
+                    }
                     
                     // Calculate the base column for this question
                     const baseCol = colRegion * 6; // 0, 6, 12, 18
@@ -771,7 +790,7 @@
                         const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
                         
                         // Sample a small area around the bubble center
-                        const sampleSize = 10; // Further reduced sample size for better precision
+                        const sampleSize = 8; // Further reduced sample size for better precision
                         let darkPixelCount = 0;
                         let totalPixelCount = 0;
                         
@@ -792,7 +811,7 @@
                                     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                                     
                                     // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 110) { // Further adjusted threshold
+                                    if (luminance < 105) { // Further adjusted threshold
                                         darkPixelCount++;
                                     }
                                     totalPixelCount++;
@@ -882,7 +901,7 @@
             }
             
             // Initialize with a sample answer key
-            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
+            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
         });
     </script>
 </body>
