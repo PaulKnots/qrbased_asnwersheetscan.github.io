@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Precise Answer Sheet Scanner</title>
+    <title>Answer Sheet Scanner with Preview</title>
     <style>
         * {
             box-sizing: border-box;
@@ -437,20 +437,58 @@
             display: none;
         }
         
-        .warp-overlay {
+        .preview-container {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 20;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
             display: none;
         }
         
-        .warp-line {
+        .preview-image {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 4px;
+        }
+        
+        .preview-controls {
             position: absolute;
-            background: rgba(231, 76, 60, 0.7);
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .preview-btn {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .preview-btn:hover {
+            background: #2980b9;
+        }
+        
+        .preview-btn.cancel {
+            background: #e74c3c;
+        }
+        
+        .preview-btn.cancel:hover {
+            background: #c0392b;
         }
         
         @media (max-width: 768px) {
@@ -462,14 +500,19 @@
                 transform: scale(0.7);
                 transform-origin: top center;
             }
+            
+            .preview-container {
+                width: 95%;
+                height: 70%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Precise Answer Sheet Scanner</h1>
-            <p class="subtitle">Uses geometric correction for accurate answer detection</p>
+            <h1>Answer Sheet Scanner with Preview</h1>
+            <p class="subtitle">Preview of detected answer sheet area before scanning</p>
         </header>
         
         <div class="instructions">
@@ -477,7 +520,9 @@
             <ol>
                 <li>Click "Start Camera" to allow camera access</li>
                 <li>Position the answer sheet with corner markers visible</li>
-                <li>App will automatically scan when all 3 markers are detected</li>
+                <li>App will automatically detect the answer sheet area</li>
+                <li>Preview of the detected area will appear</li>
+                <li>Click "Scan" to process the answer sheet</li>
                 <li>Enter the correct answers in the format "A,B,C,D,E,A,C,B..." (60 answers)</li>
                 <li>Results will update automatically</li>
             </ol>
@@ -516,7 +561,14 @@
                         <div class="marker-indicator" id="marker-tr"></div>
                         <div class="marker-indicator" id="marker-bl"></div>
                         <div class="auto-scan-indicator" id="auto-scan-indicator">Auto-Scanning...</div>
-                        <div class="warp-overlay" id="warp-overlay"></div>
+                    </div>
+                    
+                    <div class="preview-container" id="preview-container">
+                        <img id="preview-image" class="preview-image" alt="Detected Answer Sheet">
+                        <div class="preview-controls">
+                            <button class="preview-btn" id="preview-scan-btn">Scan</button>
+                            <button class="preview-btn cancel" id="preview-cancel-btn">Cancel</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -610,7 +662,10 @@
             const overlay = document.getElementById('overlay');
             const scanningArea = document.getElementById('scanning-area');
             const autoScanIndicator = document.getElementById('auto-scan-indicator');
-            const warpOverlay = document.getElementById('warp-overlay');
+            const previewContainer = document.getElementById('preview-container');
+            const previewImage = document.getElementById('preview-image');
+            const previewScanBtn = document.getElementById('preview-scan-btn');
+            const previewCancelBtn = document.getElementById('preview-cancel-btn');
             
             // Marker indicators
             const markerTl = document.getElementById('marker-tl');
@@ -701,7 +756,7 @@
                         cameraPlaceholder.style.display = 'none';
                         requestCameraBtn.style.display = 'none';
                         scanBtn.disabled = false;
-                        statusDiv.textContent = 'Position answer sheet with corner markers visible. Auto-scanning will start when all 3 markers are detected.';
+                        statusDiv.textContent = 'Position answer sheet with corner markers visible. Preview will show when all 3 markers are detected.';
                         statusDiv.className = 'status waiting';
                         
                         // Start the auto-detection process after camera is ready
@@ -755,39 +810,43 @@
                             markerBl.classList.remove('marker-detected');
                         }
                         
-                        // If all markers are detected, auto-scan
+                        // If all markers are detected, show preview
                         if (markersDetected.tl && markersDetected.tr && markersDetected.bl) {
                             clearInterval(detectionInterval);
-                            autoScanIndicator.style.display = 'block';
-                            statusDiv.textContent = 'Auto-scanning answer sheet...';
-                            statusDiv.className = 'status processing';
                             
-                            // Apply geometric correction and detect answers
-                            const detectedAnswers = detectShadedBubblesWithCorrection(
-                                context, 
-                                canvas.width, 
-                                canvas.height, 
-                                markersDetected
-                            );
+                            // Calculate the fourth corner (bottom-right) based on the other three
+                            const brX = markersDetected.tr.x - markersDetected.tl.x + markersDetected.bl.x;
+                            const brY = markersDetected.bl.y - markersDetected.tl.y + markersDetected.tr.y;
                             
-                            // Update the grid with detected answers
-                            updateGridWithAnswers(detectedAnswers);
+                            // Draw the detected area on the canvas
+                            context.strokeStyle = '#e74c3c';
+                            context.lineWidth = 3;
+                            context.beginPath();
+                            context.moveTo(markersDetected.tl.x, markersDetected.tl.y);
+                            context.lineTo(markersDetected.tr.x, markersDetected.tr.y);
+                            context.lineTo(brX, brY);
+                            context.lineTo(markersDetected.bl.x, markersDetected.bl.y);
+                            context.closePath();
+                            context.stroke();
                             
-                            // Calculate results if answer key is provided
-                            const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                            if (answerKey.length === 60) {
-                                calculateResults(answerKey, detectedAnswers);
-                                statusDiv.textContent = 'Answer sheet processed successfully!';
-                                statusDiv.className = 'status success';
-                            } else {
-                                statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
-                                statusDiv.className = 'status error';
-                            }
+                            // Draw the scanning area rectangle
+                            const minX = Math.min(markersDetected.tl.x, markersDetected.tr.x, markersDetected.bl.x, brX);
+                            const minY = Math.min(markersDetected.tl.y, markersDetected.tr.y, markersDetected.bl.y, brY);
+                            const maxX = Math.max(markersDetected.tl.x, markersDetected.tr.x, markersDetected.bl.x, brX);
+                            const maxY = Math.max(markersDetected.tl.y, markersDetected.tr.y, markersDetected.bl.y, brY);
                             
-                            // Hide the auto-scan indicator after 2 seconds
-                            setTimeout(() => {
-                                autoScanIndicator.style.display = 'none';
-                            }, 2000);
+                            scanningArea.style.left = `${minX}px`;
+                            scanningArea.style.top = `${minY}px`;
+                            scanningArea.style.width = `${maxX - minX}px`;
+                            scanningArea.style.height = `${maxY - minY}px`;
+                            
+                            // Show the preview
+                            previewImage.src = canvas.toDataURL('image/png');
+                            previewContainer.style.display = 'flex';
+                            
+                            // Update status
+                            statusDiv.textContent = 'Answer sheet detected! Review the preview and click "Scan" to process.';
+                            statusDiv.className = 'status waiting';
                         }
                     }
                 }, 300); // Check every 300ms
@@ -877,8 +936,62 @@
                 return null;
             }
             
+            // Preview scan button
+            previewScanBtn.addEventListener('click', function() {
+                previewContainer.style.display = 'none';
+                statusDiv.textContent = 'Processing answer sheet...';
+                statusDiv.className = 'status processing';
+                
+                // Process the current video frame to detect answers
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Draw video frame to canvas
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Detect markers in the image
+                const markersDetected = detectMarkers(context, canvas.width, canvas.height);
+                
+                // Apply geometric correction and detect answers
+                const detectedAnswers = detectShadedBubblesWithCorrection(
+                    context, 
+                    canvas.width, 
+                    canvas.height, 
+                    markersDetected
+                );
+                
+                // Update the grid with detected answers
+                updateGridWithAnswers(detectedAnswers);
+                
+                // Calculate results if answer key is provided
+                const answerKey = answerKeyInput.value.toUpperCase().split(',');
+                if (answerKey.length === 60) {
+                    calculateResults(answerKey, detectedAnswers);
+                    statusDiv.textContent = 'Answer sheet processed successfully!';
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
+                    statusDiv.className = 'status error';
+                }
+            });
+            
+            // Preview cancel button
+            previewCancelBtn.addEventListener('click', function() {
+                previewContainer.style.display = 'none';
+                statusDiv.textContent = 'Position answer sheet with corner markers visible. Preview will show when all 3 markers are detected.';
+                statusDiv.className = 'status waiting';
+                
+                // Restart auto-detection
+                setTimeout(startAutoDetection, 500);
+            });
+            
             // Apply geometric correction and detect answers
             function detectShadedBubblesWithCorrection(context, width, height, markers) {
+                if (!markers.tl || !markers.tr || !markers.bl) {
+                    return new Array(60).fill('X'); // Return empty array if markers not found
+                }
+                
                 // Calculate the fourth corner (bottom-right) based on the other three
                 const brX = markers.tr.x - markers.tl.x + markers.bl.x;
                 const brY = markers.bl.y - markers.tl.y + markers.tr.y;
@@ -1105,6 +1218,9 @@
                 markerTl.classList.remove('marker-detected');
                 markerTr.classList.remove('marker-detected');
                 markerBl.classList.remove('marker-detected');
+                
+                // Hide preview if visible
+                previewContainer.style.display = 'none';
             });
             
             // Save results functionality
