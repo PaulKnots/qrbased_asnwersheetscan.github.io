@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Answer Sheet Scanner with Preview</title>
+    <title>Flexible Answer Sheet Scanner</title>
     <style>
         * {
             box-sizing: border-box;
@@ -84,7 +84,9 @@
         .camera-container {
             position: relative;
             width: 100%;
-            height: 300px;
+            /* 148:90 aspect ratio = 1.644... */
+            height: calc(100vw * 0.9 * 90 / 148); /* Responsive height based on width */
+            max-height: 300px;
             background: #2c3e50;
             border-radius: 8px;
             overflow: hidden;
@@ -123,36 +125,6 @@
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
-        }
-        
-        .corner-marker {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: #2c3e50;
-            z-index: 10;
-        }
-        
-        .corner-tl {
-            top: 20px;
-            left: 20px;
-        }
-        
-        .corner-tr {
-            top: 20px;
-            right: 20px;
-        }
-        
-        .corner-bl {
-            bottom: 20px;
-            left: 20px;
-        }
-        
-        .scanning-area {
-            position: absolute;
-            border: 2px solid #e74c3c;
-            background: rgba(231, 76, 60, 0.1);
             pointer-events: none;
         }
         
@@ -443,7 +415,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 80%;
-            height: 80%;
+            height: calc(80% * 90 / 148); /* Maintain aspect ratio */
+            max-height: 70vh;
             background: rgba(0, 0, 0, 0.8);
             border: 2px solid #3498db;
             border-radius: 8px;
@@ -501,9 +474,13 @@
                 transform-origin: top center;
             }
             
+            .camera-container {
+                height: calc(90vh * 0.5 * 90 / 148); /* Adjust for mobile */
+            }
+            
             .preview-container {
                 width: 95%;
-                height: 70%;
+                height: calc(70vh * 90 / 148); /* Maintain aspect ratio */
             }
         }
     </style>
@@ -511,15 +488,15 @@
 <body>
     <div class="container">
         <header>
-            <h1>Answer Sheet Scanner with Preview</h1>
-            <p class="subtitle">Preview of detected answer sheet area before scanning</p>
+            <h1>Flexible Answer Sheet Scanner</h1>
+            <p class="subtitle">Markers can be anywhere in view - like a QR code scanner</p>
         </header>
         
         <div class="instructions">
             <h3>How to Use:</h3>
             <ol>
                 <li>Click "Start Camera" to allow camera access</li>
-                <li>Position the answer sheet with corner markers visible</li>
+                <li>Position the answer sheet with corner markers visible anywhere in camera view</li>
                 <li>App will automatically detect the answer sheet area</li>
                 <li>Preview of the detected area will appear</li>
                 <li>Click "Scan" to process the answer sheet</li>
@@ -553,10 +530,6 @@
                     </div>
                     
                     <div class="overlay" id="overlay">
-                        <div class="corner-marker corner-tl"></div>
-                        <div class="corner-marker corner-tr"></div>
-                        <div class="corner-marker corner-bl"></div>
-                        <div class="scanning-area" id="scanning-area"></div>
                         <div class="marker-indicator" id="marker-tl"></div>
                         <div class="marker-indicator" id="marker-tr"></div>
                         <div class="marker-indicator" id="marker-bl"></div>
@@ -579,7 +552,7 @@
                 </div>
                 
                 <div class="processing-info">
-                    <p><strong>Processing Info:</strong> Position answer sheet with corner markers visible</p>
+                    <p><strong>Processing Info:</strong> Position answer sheet with corner markers visible anywhere in camera view</p>
                 </div>
                 
                 <div class="controls">
@@ -660,7 +633,6 @@
             const progressValue = document.getElementById('progress-value');
             const detectionGrid = document.getElementById('detection-grid');
             const overlay = document.getElementById('overlay');
-            const scanningArea = document.getElementById('scanning-area');
             const autoScanIndicator = document.getElementById('auto-scan-indicator');
             const previewContainer = document.getElementById('preview-container');
             const previewImage = document.getElementById('preview-image');
@@ -742,8 +714,8 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: { 
                             facingMode: 'environment',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                            width: { ideal: 1480 },  // Maintain aspect ratio with width
+                            height: { ideal: 900 }   // 148:90 ratio (1.644...)
                         } 
                     });
                     
@@ -756,7 +728,7 @@
                         cameraPlaceholder.style.display = 'none';
                         requestCameraBtn.style.display = 'none';
                         scanBtn.disabled = false;
-                        statusDiv.textContent = 'Position answer sheet with corner markers visible. Preview will show when all 3 markers are detected.';
+                        statusDiv.textContent = 'Position answer sheet with corner markers visible anywhere in camera view. Preview will show when all 3 markers are detected.';
                         statusDiv.className = 'status waiting';
                         
                         // Start the auto-detection process after camera is ready
@@ -829,17 +801,6 @@
                             context.closePath();
                             context.stroke();
                             
-                            // Draw the scanning area rectangle
-                            const minX = Math.min(markersDetected.tl.x, markersDetected.tr.x, markersDetected.bl.x, brX);
-                            const minY = Math.min(markersDetected.tl.y, markersDetected.tr.y, markersDetected.bl.y, brY);
-                            const maxX = Math.max(markersDetected.tl.x, markersDetected.tr.x, markersDetected.bl.x, brX);
-                            const maxY = Math.max(markersDetected.tl.y, markersDetected.tr.y, markersDetected.bl.y, brY);
-                            
-                            scanningArea.style.left = `${minX}px`;
-                            scanningArea.style.top = `${minY}px`;
-                            scanningArea.style.width = `${maxX - minX}px`;
-                            scanningArea.style.height = `${maxY - minY}px`;
-                            
                             // Show the preview
                             previewImage.src = canvas.toDataURL('image/png');
                             previewContainer.style.display = 'flex';
@@ -852,36 +813,67 @@
                 }, 300); // Check every 300ms
             }
             
-            // Detect markers in the image
+            // Detect markers in the image - anywhere in the view
             function detectMarkers(context, width, height) {
                 const imageData = context.getImageData(0, 0, width, height);
                 const data = imageData.data;
                 
-                // Define approximate positions for markers (based on expected layout)
-                const tlArea = { x: 0, y: 0, w: width * 0.15, h: height * 0.15 };
-                const trArea = { x: width * 0.85, y: 0, w: width * 0.15, h: height * 0.15 };
-                const blArea = { x: 0, y: height * 0.85, w: width * 0.15, h: height * 0.15 };
-                
+                // Search the entire image for markers
                 const markers = {
-                    tl: detectMarkerInArea(data, width, height, tlArea),
-                    tr: detectMarkerInArea(data, width, height, trArea),
-                    bl: detectMarkerInArea(data, width, height, blArea)
+                    tl: null,
+                    tr: null,
+                    bl: null
                 };
+                
+                // Define marker size range (in pixels)
+                const minMarkerSize = Math.floor(Math.min(width, height) * 0.02); // 2% of smaller dimension
+                const maxMarkerSize = Math.floor(Math.min(width, height) * 0.1);  // 10% of smaller dimension
+                
+                // Search for markers in the image
+                for (let y = 0; y < height; y += 10) {
+                    for (let x = 0; x < width; x += 10) {
+                        // Check if this is a potential marker
+                        if (isPotentialMarker(data, width, height, x, y, minMarkerSize, maxMarkerSize)) {
+                            // Determine which corner this marker represents based on position
+                            const marker = { x: x, y: y };
+                            
+                            // Calculate distances to corners
+                            const distToTl = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+                            const distToTr = Math.sqrt(Math.pow(width - x, 2) + Math.pow(y, 2));
+                            const distToBl = Math.sqrt(Math.pow(x, 2) + Math.pow(height - y, 2));
+                            
+                            // Assign to the closest corner
+                            if (distToTl < distToTr && distToTl < distToBl) {
+                                if (!markers.tl || distToTl < Math.sqrt(Math.pow(markers.tl.x, 2) + Math.pow(markers.tl.y, 2))) {
+                                    markers.tl = marker;
+                                }
+                            } else if (distToTr < distToBl) {
+                                if (!markers.tr || distToTr < Math.sqrt(Math.pow(width - markers.tr.x, 2) + Math.pow(markers.tr.y, 2))) {
+                                    markers.tr = marker;
+                                }
+                            } else {
+                                if (!markers.bl || distToBl < Math.sqrt(Math.pow(markers.bl.x, 2) + Math.pow(height - markers.bl.y, 2))) {
+                                    markers.bl = marker;
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 return markers;
             }
             
-            // Detect a marker in a specific area
-            function detectMarkerInArea(data, width, height, area) {
-                const { x, y, w, h } = area;
-                const sampleSize = 10; // Size of sample area
+            // Check if a position is a potential marker
+            function isPotentialMarker(data, width, height, x, y, minSize, maxSize) {
+                // Check if this position has a dark square
                 let darkPixelCount = 0;
                 let totalPixelCount = 0;
                 
-                for (let dx = 0; dx < w; dx += sampleSize) {
-                    for (let dy = 0; dy < h; dy += sampleSize) {
-                        const px = Math.floor(x + dx);
-                        const py = Math.floor(y + dy);
+                // Check a square area around the position
+                for (let dx = -minSize; dx <= maxSize; dx += 5) {
+                    for (let dy = -minSize; dy <= maxSize; dy += 5) {
+                        const px = x + dx;
+                        const py = y + dy;
                         
                         if (px >= 0 && px < width && py >= 0 && py < height) {
                             const idx = (py * width + px) * 4;
@@ -901,39 +893,8 @@
                     }
                 }
                 
-                // If a significant portion of the sample area is dark, consider it a marker
-                if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.6) {
-                    // Find the darkest pixel in the area
-                    let darkestX = x;
-                    let darkestY = y;
-                    let darkestLuminance = 255;
-                    
-                    for (let dx = 0; dx < w; dx += 5) {
-                        for (let dy = 0; dy < h; dy += 5) {
-                            const px = Math.floor(x + dx);
-                            const py = Math.floor(y + dy);
-                            
-                            if (px >= 0 && px < width && py >= 0 && py < height) {
-                                const idx = (py * width + px) * 4;
-                                const r = data[idx];
-                                const g = data[idx + 1];
-                                const b = data[idx + 2];
-                                
-                                const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                                
-                                if (luminance < darkestLuminance) {
-                                    darkestLuminance = luminance;
-                                    darkestX = px;
-                                    darkestY = py;
-                                }
-                            }
-                        }
-                    }
-                    
-                    return { x: darkestX, y: darkestY };
-                }
-                
-                return null;
+                // If a significant portion of the area is dark, consider it a marker
+                return totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.6;
             }
             
             // Preview scan button
@@ -979,7 +940,7 @@
             // Preview cancel button
             previewCancelBtn.addEventListener('click', function() {
                 previewContainer.style.display = 'none';
-                statusDiv.textContent = 'Position answer sheet with corner markers visible. Preview will show when all 3 markers are detected.';
+                statusDiv.textContent = 'Position answer sheet with corner markers visible anywhere in camera view. Preview will show when all 3 markers are detected.';
                 statusDiv.className = 'status waiting';
                 
                 // Restart auto-detection
