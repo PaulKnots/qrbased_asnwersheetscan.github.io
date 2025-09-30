@@ -3,1384 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flexible Answer Sheet Scanner</title>
+    <title>Document Scanner</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            background-color: #f5f5f5;
         }
         
         .container {
-            max-width: 1200px;
-            width: 100%;
-            margin: 0 auto;
-        }
-        
-        header {
-            text-align: center;
-            padding: 20px 0;
-            margin-bottom: 20px;
-        }
-        
-        h1 {
-            color: #2c3e50;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-        }
-        
-        .subtitle {
-            color: #7f8c8d;
-            font-size: 1.2rem;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .app-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .scanner-section {
-            flex: 1;
-            min-width: 300px;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-            padding: 20px;
-            position: relative;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
-        .results-section {
-            flex: 1;
-            min-width: 300px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        
-        .section-title {
-            font-size: 1.5rem;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #3498db;
-        }
-        
-        .camera-container {
-            position: relative;
-            width: 100%;
-            /* 148:90 aspect ratio = 1.644... */
-            height: calc(100vw * 0.9 * 90 / 148); /* Responsive height based on width */
-            max-height: 300px;
-            background: #2c3e50;
+        .upload-area {
+            border: 2px dashed #ccc;
             border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: none;
-        }
-        
-        #canvas {
-            display: none;
-        }
-        
-        .camera-placeholder {
-            color: white;
+            padding: 40px;
             text-align: center;
-            padding: 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: border-color 0.3s;
         }
         
-        .camera-placeholder i {
-            font-size: 4rem;
-            margin-bottom: 15px;
-            color: #3498db;
-        }
-        
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-        
-        .marker-indicator {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 2px solid #2ecc71;
-            background: rgba(46, 204, 113, 0.2);
-            z-index: 5;
-            display: none;
-        }
-        
-        .marker-detected {
-            display: block !important;
+        .upload-area:hover {
+            border-color: #007bff;
         }
         
         .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            margin: 20px 0;
+            text-align: center;
         }
         
         button {
-            flex: 1;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .scan-btn {
-            background: #2ecc71;
+            background-color: #007bff;
             color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
         }
         
-        .scan-btn:hover {
-            background: #27ae60;
-            transform: translateY(-2px);
+        button:hover {
+            background-color: #0056b3;
         }
         
-        .scan-btn:disabled {
-            background: #bdc3c7;
+        button:disabled {
+            background-color: #ccc;
             cursor: not-allowed;
-            transform: none;
         }
         
-        .reset-btn {
-            background: #e74c3c;
-            color: white;
-        }
-        
-        .reset-btn:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-        }
-        
-        .request-camera-btn {
-            background: #3498db;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 20px auto;
+        canvas {
+            max-width: 100%;
             display: block;
-        }
-        
-        .request-camera-btn:hover {
-            background: #2980b9;
-            transform: translateY(-2px);
-        }
-        
-        .status {
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            text-align: center;
-            font-weight: 500;
-        }
-        
-        .status.ready {
-            background: #e8f4fc;
-            color: #3498db;
-        }
-        
-        .status.processing {
-            background: #fef9e7;
-            color: #f39c12;
-        }
-        
-        .status.success {
-            background: #eafaf1;
-            color: #27ae60;
-        }
-        
-        .status.error {
-            background: #fadbd8;
-            color: #c0392b;
-        }
-        
-        .status.waiting {
-            background: #e8f6f3;
-            color: #16a085;
-        }
-        
-        .answer-key {
-            margin-bottom: 20px;
-        }
-        
-        .key-input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            font-size: 1rem;
-            margin-bottom: 10px;
-        }
-        
-        .key-input:focus {
-            border-color: #3498db;
-            outline: none;
-        }
-        
-        .results-container {
-            margin-top: 20px;
-        }
-        
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .result-label {
-            font-weight: 500;
-            color: #7f8c8d;
-        }
-        
-        .result-value {
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .progress-container {
-            margin: 20px 0;
-        }
-        
-        .progress-bar {
-            height: 20px;
-            background: #ecf0f1;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        
-        .progress {
-            height: 100%;
-            background: linear-gradient(90deg, #3498db, #2ecc71);
-            border-radius: 10px;
-            transition: width 0.5s ease;
-        }
-        
-        .instructions {
-            background: #fff8e1;
-            border-left: 4px solid #f39c12;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 0 8px 8px 0;
-        }
-        
-        .instructions h3 {
-            margin-bottom: 10px;
-            color: #f39c12;
-        }
-        
-        .instructions ol {
-            padding-left: 20px;
-        }
-        
-        .instructions li {
-            margin-bottom: 8px;
-            color: #7f8c8d;
-        }
-        
-        .detection-grid {
-            display: grid;
-            grid-template-columns: repeat(24, 1fr);
-            gap: 1px;
-            max-width: 1200px;
             margin: 20px auto;
             border: 1px solid #ddd;
-            background: #f8f9fa;
-            height: 240px; /* 15 rows * 16px per row (approx 6mm) */
-            overflow-y: auto;
         }
         
-        .grid-cell {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            position: relative;
-            height: 16px; /* Approx 6mm at 96 DPI */
+        .image-container {
+            text-align: center;
         }
         
-        .question-cell {
-            background: #e8f4fc;
-            font-weight: bold;
-            width: 28px; /* Approx 7mm at 96 DPI */
-        }
-        
-        .option-cell {
-            background: #f8f9fa;
-            width: 24px; /* Approx 6mm at 96 DPI */
-        }
-        
-        .detected {
-            background: #2c3e50;
-            color: white;
-        }
-        
-        .bubble {
-            width: 80%;
-            height: 80%;
-            border-radius: 50%;
-            border: 1px solid #95a5a6;
-        }
-        
-        .detected .bubble {
-            background: #2c3e50;
-        }
-        
-        .processing-info {
-            background: #e8f4fc;
-            padding: 10px;
-            border-radius: 6px;
-            margin-top: 15px;
-            font-size: 0.9rem;
-        }
-        
-        .marker-size-info {
-            background: #e8f4fc;
-            padding: 15px;
-            border-radius: 8px;
+        .slider-container {
             margin: 15px 0;
-            border-left: 4px solid #3498db;
         }
         
-        .marker-size-info h3 {
-            margin-bottom: 10px;
-            color: #2c3e50;
+        label {
+            display: block;
+            margin-bottom: 5px;
         }
         
-        .marker-size-info ul {
-            padding-left: 20px;
-        }
-        
-        .marker-size-info li {
-            margin-bottom: 8px;
-        }
-        
-        .auto-scan-indicator {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(46, 204, 113, 0.9);
-            color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            z-index: 20;
-            display: none;
-        }
-        
-        .preview-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            height: calc(80% * 90 / 148); /* Maintain aspect ratio */
-            max-height: 70vh;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            display: none;
-        }
-        
-        .preview-image {
-            max-width: 100%;
-            max-height: 100%;
-            border-radius: 4px;
-        }
-        
-        .preview-controls {
-            position: absolute;
-            bottom: 20px;
+        input[type="range"] {
             width: 100%;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-        
-        .preview-btn {
-            padding: 10px 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        
-        .preview-btn:hover {
-            background: #2980b9;
-        }
-        
-        .preview-btn.cancel {
-            background: #e74c3c;
-        }
-        
-        .preview-btn.cancel:hover {
-            background: #c0392b;
-        }
-        
-        @media (max-width: 768px) {
-            .app-container {
-                flex-direction: column;
-            }
-            
-            .detection-grid {
-                transform: scale(0.7);
-                transform-origin: top center;
-            }
-            
-            .camera-container {
-                height: calc(90vh * 0.5 * 90 / 148); /* Adjust for mobile */
-            }
-            
-            .preview-container {
-                width: 95%;
-                height: calc(70vh * 90 / 148); /* Maintain aspect ratio */
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Flexible Answer Sheet Scanner</h1>
-            <p class="subtitle">Markers can be anywhere in view - like a QR code scanner</p>
-        </header>
+        <h1>Document Scanner</h1>
         
-        <div class="instructions">
-            <h3>How to Use:</h3>
-            <ol>
-                <li>Click "Start Camera" to allow camera access</li>
-                <li>Position the answer sheet with corner markers visible anywhere in camera view</li>
-                <li>App will automatically detect the answer sheet area</li>
-                <li>Preview of the detected area will appear</li>
-                <li>Click "Scan" to process the answer sheet</li>
-                <li>Enter the correct answers in the format "A,B,C,D,E,A,C,B..." (60 answers)</li>
-                <li>Results will update automatically</li>
-            </ol>
+        <div class="upload-area" id="uploadArea">
+            <p>📁 Click or drag an image to scan</p>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
         </div>
         
-        <div class="marker-size-info">
-            <h3>Optimal Corner Marker Size:</h3>
-            <ul>
-                <li><strong>Recommended size:</strong> 12mm × 12mm (45px at 96 DPI)</li>
-                <li><strong>Minimum size:</strong> 8mm × 8mm (30px at 96 DPI)</li>
-                <li><strong>Maximum size:</strong> 20mm × 20mm (75px at 96 DPI)</li>
-                <li><strong>Color:</strong> Solid black (#000000) for high contrast</li>
-                <li><strong>Shape:</strong> Square with sharp corners for precise detection</li>
-            </ul>
+        <div class="controls" id="controls" style="display: none;">
+            <button id="detectBtn">Detect Document</button>
+            <button id="enhanceBtn">Enhance</button>
+            <button id="resetBtn">Reset</button>
+            <button id="downloadBtn">Download Scanned</button>
         </div>
         
-        <div class="app-container">
-            <div class="scanner-section">
-                <h2 class="section-title">Scanner</h2>
-                
-                <div class="camera-container">
-                    <video id="video" autoplay playsinline></video>
-                    <canvas id="canvas"></canvas>
-                    <div class="camera-placeholder" id="camera-placeholder">
-                        <i>📷</i>
-                        <p>Camera Access Required</p>
-                        <p>Click the button below to start camera</p>
-                    </div>
-                    
-                    <div class="overlay" id="overlay">
-                        <div class="marker-indicator" id="marker-tl"></div>
-                        <div class="marker-indicator" id="marker-tr"></div>
-                        <div class="marker-indicator" id="marker-bl"></div>
-                        <div class="auto-scan-indicator" id="auto-scan-indicator">Auto-Scanning...</div>
-                    </div>
-                    
-                    <div class="preview-container" id="preview-container">
-                        <img id="preview-image" class="preview-image" alt="Detected Answer Sheet">
-                        <div class="preview-controls">
-                            <button class="preview-btn" id="preview-scan-btn">Scan</button>
-                            <button class="preview-btn cancel" id="preview-cancel-btn">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <button class="request-camera-btn" id="request-camera-btn">Start Camera</button>
-                
-                <div class="status ready" id="status">
-                    Ready to scan answer sheet
-                </div>
-                
-                <div class="processing-info">
-                    <p><strong>Processing Info:</strong> Position answer sheet with corner markers visible anywhere in camera view</p>
-                </div>
-                
-                <div class="controls">
-                    <button class="scan-btn" id="scan-btn" disabled>Scan Answer Sheet</button>
-                    <button class="reset-btn" id="reset-btn">Reset</button>
-                </div>
-                
-                <div class="answer-key">
-                    <label for="answer-key" style="display: block; margin-bottom: 8px; font-weight: 500;">Enter Answer Key (60 answers):</label>
-                    <input type="text" id="answer-key" class="key-input" placeholder="A,B,C,D,E,A,C,B... (60 answers)">
-                </div>
-            </div>
-            
-            <div class="results-section">
-                <h2 class="section-title">Results</h2>
-                
-                <div class="progress-container">
-                    <div class="result-item">
-                        <span class="result-label">Score Progress:</span>
-                        <span class="result-value" id="progress-value">0%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress" id="progress-bar" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <div class="results-container">
-                    <div class="result-item">
-                        <span class="result-label">Total Questions:</span>
-                        <span class="result-value" id="total-questions">60</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-label">Correct Answers:</span>
-                        <span class="result-value" id="correct-answers">0</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-label">Wrong Answers:</span>
-                        <span class="result-value" id="wrong-answers">0</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-label">Score Percentage:</span>
-                        <span class="result-value" id="score-percentage">0%</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-label">Grade:</span>
-                        <span class="result-value" id="grade">-</span>
-                    </div>
-                </div>
-                
-                <div class="controls" style="margin-top: 30px;">
-                    <button class="save-btn" id="save-btn" style="background: #3498db; color: white;">Save Results</button>
-                    <button class="export-btn" id="export-btn" style="background: #9b59b6; color: white;">Export to CSV</button>
-                </div>
-            </div>
+        <div class="slider-container" id="thresholdControls" style="display: none;">
+            <label for="threshold">Contrast Adjustment: <span id="thresholdValue">128</span></label>
+            <input type="range" id="threshold" min="0" max="255" value="128">
         </div>
         
-        <div class="answer-sheet-container">
-            <h2 class="section-title">Detected Answers</h2>
-            <div class="detection-grid" id="detection-grid">
-                <!-- Grid will be populated by JavaScript -->
-            </div>
+        <div class="image-container">
+            <canvas id="originalCanvas"></canvas>
+            <canvas id="resultCanvas" style="display: none;"></canvas>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            const cameraPlaceholder = document.getElementById('camera-placeholder');
-            const requestCameraBtn = document.getElementById('request-camera-btn');
-            const scanBtn = document.getElementById('scan-btn');
-            const resetBtn = document.getElementById('reset-btn');
-            const saveBtn = document.getElementById('save-btn');
-            const exportBtn = document.getElementById('export-btn');
-            const answerKeyInput = document.getElementById('answer-key');
-            const statusDiv = document.getElementById('status');
-            const progressBar = document.getElementById('progress-bar');
-            const progressValue = document.getElementById('progress-value');
-            const detectionGrid = document.getElementById('detection-grid');
-            const overlay = document.getElementById('overlay');
-            const autoScanIndicator = document.getElementById('auto-scan-indicator');
-            const previewContainer = document.getElementById('preview-container');
-            const previewImage = document.getElementById('preview-image');
-            const previewScanBtn = document.getElementById('preview-scan-btn');
-            const previewCancelBtn = document.getElementById('preview-cancel-btn');
-            
-            // Marker indicators
-            const markerTl = document.getElementById('marker-tl');
-            const markerTr = document.getElementById('marker-tr');
-            const markerBl = document.getElementById('marker-bl');
-            
-            // Elements for results
-            const totalQuestionsEl = document.getElementById('total-questions');
-            const correctAnswersEl = document.getElementById('correct-answers');
-            const wrongAnswersEl = document.getElementById('wrong-answers');
-            const scorePercentageEl = document.getElementById('score-percentage');
-            const gradeEl = document.getElementById('grade');
-            
-            // Create the detection grid with correct numbering
-            function createDetectionGrid() {
-                detectionGrid.innerHTML = '';
-                
-                for (let row = 0; row < 15; row++) {
-                    for (let col = 0; col < 24; col++) {
-                        const cell = document.createElement('div');
-                        cell.className = 'grid-cell';
-                        
-                        // Check if it's a question number column (1st, 7th, 13th, 19th)
-                        if (col === 0 || col === 6 || col === 12 || col === 18) {
-                            cell.classList.add('question-cell');
-                            
-                            // Calculate question number based on column
-                            let questionNum;
-                            if (col === 0) questionNum = row + 1;        // 1-15
-                            else if (col === 6) questionNum = row + 16;   // 16-30
-                            else if (col === 12) questionNum = row + 31;  // 31-45
-                            else if (col === 18) questionNum = row + 46;  // 46-60
-                            
-                            cell.textContent = questionNum;
-                        } else {
-                            // Option columns (A, B, C, D, E)
-                            cell.classList.add('option-cell');
-                            const optionCol = col % 6; // 0-5: A, B, C, D, E, (unused)
-                            const option = optionCol === 1 ? 'A' : 
-                                          optionCol === 2 ? 'B' : 
-                                          optionCol === 3 ? 'C' : 
-                                          optionCol === 4 ? 'D' : 
-                                          optionCol === 5 ? 'E' : '';
-                            
-                            if (option) {
-                                cell.innerHTML = `<div class="bubble"></div>`;
-                                
-                                // Calculate question number based on column
-                                let questionNum;
-                                if (col < 6) questionNum = row + 1;        // 1-15
-                                else if (col < 12) questionNum = row + 16; // 16-30
-                                else if (col < 18) questionNum = row + 31; // 31-45
-                                else questionNum = row + 46;               // 46-60
-                                
-                                cell.dataset.question = questionNum;
-                                cell.dataset.option = option;
-                            } else {
-                                // Unused column (between option sets)
-                                cell.style.background = '#e9ecef';
-                            }
-                        }
-                        
-                        detectionGrid.appendChild(cell);
-                    }
-                }
-            }
-            
-            // Initialize the grid
-            createDetectionGrid();
-            
-            // Get camera access when button is clicked
-            requestCameraBtn.addEventListener('click', async function() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { 
-                            facingMode: 'environment',
-                            width: { ideal: 1480 },  // Maintain aspect ratio with width
-                            height: { ideal: 900 }   // 148:90 ratio (1.644...)
-                        } 
-                    });
-                    
-                    // Set the stream to the video element
-                    video.srcObject = stream;
-                    
-                    // Wait for the video to be loaded before showing it
-                    video.onloadedmetadata = function() {
-                        video.style.display = 'block';
-                        cameraPlaceholder.style.display = 'none';
-                        requestCameraBtn.style.display = 'none';
-                        scanBtn.disabled = false;
-                        statusDiv.textContent = 'Position answer sheet with corner markers visible anywhere in camera view. Preview will show when all 3 markers are detected.';
-                        statusDiv.className = 'status waiting';
-                        
-                        // Start the auto-detection process after camera is ready
-                        setTimeout(startAutoDetection, 1000);
-                    };
-                } catch (err) {
-                    console.error("Error accessing camera: ", err);
-                    statusDiv.textContent = 'Camera access denied. Please enable camera to scan answer sheets.';
-                    statusDiv.className = 'status error';
-                }
-            });
-            
-            // Auto-detection process
-            function startAutoDetection() {
-                const detectionInterval = setInterval(() => {
-                    // Only run if video is playing
-                    if (video.srcObject && video.readyState === 4) {
-                        // Process the current video frame to detect markers
-                        const context = canvas.getContext('2d');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        
-                        // Draw video frame to canvas
-                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        // Detect markers in the image
-                        const markersDetected = detectMarkers(context, canvas.width, canvas.height);
-                        
-                        // Update marker indicators
-                        if (markersDetected.tl) {
-                            markerTl.classList.add('marker-detected');
-                            markerTl.style.top = `${markersDetected.tl.y}px`;
-                            markerTl.style.left = `${markersDetected.tl.x}px`;
-                        } else {
-                            markerTl.classList.remove('marker-detected');
-                        }
-                        
-                        if (markersDetected.tr) {
-                            markerTr.classList.add('marker-detected');
-                            markerTr.style.top = `${markersDetected.tr.y}px`;
-                            markerTr.style.left = `${markersDetected.tr.x}px`;
-                        } else {
-                            markerTr.classList.remove('marker-detected');
-                        }
-                        
-                        if (markersDetected.bl) {
-                            markerBl.classList.add('marker-detected');
-                            markerBl.style.top = `${markersDetected.bl.y}px`;
-                            markerBl.style.left = `${markersDetected.bl.x}px`;
-                        } else {
-                            markerBl.classList.remove('marker-detected');
-                        }
-                        
-                        // If all markers are detected, show preview
-                        if (markersDetected.tl && markersDetected.tr && markersDetected.bl) {
-                            clearInterval(detectionInterval);
-                            
-                            // Calculate the fourth corner (bottom-right) based on the other three
-                            const brX = markersDetected.tr.x - markersDetected.tl.x + markersDetected.bl.x;
-                            const brY = markersDetected.bl.y - markersDetected.tl.y + markersDetected.tr.y;
-                            
-                            // Draw the detected area on the canvas
-                            context.strokeStyle = '#e74c3c';
-                            context.lineWidth = 3;
-                            context.beginPath();
-                            context.moveTo(markersDetected.tl.x, markersDetected.tl.y);
-                            context.lineTo(markersDetected.tr.x, markersDetected.tr.y);
-                            context.lineTo(brX, brY);
-                            context.lineTo(markersDetected.bl.x, markersDetected.bl.y);
-                            context.closePath();
-                            context.stroke();
-                            
-                            // Show the preview
-                            previewImage.src = canvas.toDataURL('image/png');
-                            previewContainer.style.display = 'flex';
-                            
-                            // Update status
-                            statusDiv.textContent = 'Answer sheet detected! Review the preview and click "Scan" to process.';
-                            statusDiv.className = 'status waiting';
-                        }
-                    }
-                }, 300); // Check every 300ms
-            }
-            
-            // Detect markers in the image - anywhere in the view
-            function detectMarkers(context, width, height) {
-                const imageData = context.getImageData(0, 0, width, height);
-                const data = imageData.data;
-                
-                // Search the entire image for markers
-                const markers = {
-                    tl: null,
-                    tr: null,
-                    bl: null
-                };
-                
-                // Define marker size range (in pixels)
-                const minMarkerSize = Math.floor(Math.min(width, height) * 0.02); // 2% of smaller dimension
-                const maxMarkerSize = Math.floor(Math.min(width, height) * 0.1);  // 10% of smaller dimension
-                
-                // Search for markers in the image
-                for (let y = 0; y < height; y += 10) {
-                    for (let x = 0; x < width; x += 10) {
-                        // Check if this is a potential marker
-                        if (isPotentialMarker(data, width, height, x, y, minMarkerSize, maxMarkerSize)) {
-                            // Determine which corner this marker represents based on position
-                            const marker = { x: x, y: y };
-                            
-                            // Calculate distances to corners
-                            const distToTl = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
-                            const distToTr = Math.sqrt(Math.pow(width - x, 2) + Math.pow(y, 2));
-                            const distToBl = Math.sqrt(Math.pow(x, 2) + Math.pow(height - y, 2));
-                            
-                            // Assign to the closest corner
-                            if (distToTl < distToTr && distToTl < distToBl) {
-                                if (!markers.tl || distToTl < Math.sqrt(Math.pow(markers.tl.x, 2) + Math.pow(markers.tl.y, 2))) {
-                                    markers.tl = marker;
-                                }
-                            } else if (distToTr < distToBl) {
-                                if (!markers.tr || distToTr < Math.sqrt(Math.pow(width - markers.tr.x, 2) + Math.pow(markers.tr.y, 2))) {
-                                    markers.tr = marker;
-                                }
-                            } else {
-                                if (!markers.bl || distToBl < Math.sqrt(Math.pow(markers.bl.x, 2) + Math.pow(height - markers.bl.y, 2))) {
-                                    markers.bl = marker;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                return markers;
-            }
-            
-            // Check if a position is a potential marker
-            function isPotentialMarker(data, width, height, x, y, minSize, maxSize) {
-                // Check if this position has a dark square
-                let darkPixelCount = 0;
-                let totalPixelCount = 0;
-                
-                // Check a square area around the position
-                for (let dx = -minSize; dx <= maxSize; dx += 5) {
-                    for (let dy = -minSize; dy <= maxSize; dy += 5) {
-                        const px = x + dx;
-                        const py = y + dy;
-                        
-                        if (px >= 0 && px < width && py >= 0 && py < height) {
-                            const idx = (py * width + px) * 4;
-                            const r = data[idx];
-                            const g = data[idx + 1];
-                            const b = data[idx + 2];
-                            
-                            // Calculate luminance (perceived brightness)
-                            const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                            
-                            // If luminance is below threshold, it's a dark pixel
-                            if (luminance < 50) { // Dark threshold
-                                darkPixelCount++;
-                            }
-                            totalPixelCount++;
-                        }
-                    }
-                }
-                
-                // If a significant portion of the area is dark, consider it a marker
-                return totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.6;
-            }
-            
-            // Preview scan button
-            previewScanBtn.addEventListener('click', function() {
-                previewContainer.style.display = 'none';
-                statusDiv.textContent = 'Processing answer sheet...';
-                statusDiv.className = 'status processing';
-                
-                // Process the current video frame to detect answers
-                const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                
-                // Draw video frame to canvas
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // Detect markers in the image
-                const markersDetected = detectMarkers(context, canvas.width, canvas.height);
-                
-                // Apply geometric correction and detect answers
-                const detectedAnswers = detectShadedBubblesWithCorrection(
-                    context, 
-                    canvas.width, 
-                    canvas.height, 
-                    markersDetected
-                );
-                
-                // Update the grid with detected answers
-                updateGridWithAnswers(detectedAnswers);
-                
-                // Calculate results if answer key is provided
-                const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                if (answerKey.length === 60) {
-                    calculateResults(answerKey, detectedAnswers);
-                    statusDiv.textContent = 'Answer sheet processed successfully!';
-                    statusDiv.className = 'status success';
-                } else {
-                    statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
-                    statusDiv.className = 'status error';
-                }
-            });
-            
-            // Preview cancel button
-            previewCancelBtn.addEventListener('click', function() {
-                previewContainer.style.display = 'none';
-                statusDiv.textContent = 'Position answer sheet with corner markers visible anywhere in camera view. Preview will show when all 3 markers are detected.';
-                statusDiv.className = 'status waiting';
-                
-                // Restart auto-detection
-                setTimeout(startAutoDetection, 500);
-            });
-            
-            // Apply geometric correction and detect answers
-            function detectShadedBubblesWithCorrection(context, width, height, markers) {
-                if (!markers.tl || !markers.tr || !markers.bl) {
-                    return new Array(60).fill('X'); // Return empty array if markers not found
-                }
-                
-                // Calculate the fourth corner (bottom-right) based on the other three
-                const brX = markers.tr.x - markers.tl.x + markers.bl.x;
-                const brY = markers.bl.y - markers.tl.y + markers.tr.y;
-                
-                // Create a temporary canvas for the corrected image
-                const correctedCanvas = document.createElement('canvas');
-                const correctedContext = correctedCanvas.getContext('2d');
-                
-                // Set corrected canvas size based on answer sheet dimensions
-                correctedCanvas.width = 148 * 4; // 148mm at 4px/mm (approx)
-                correctedCanvas.height = 90 * 4; // 90mm at 4px/mm (approx)
-                
-                // Draw the original image with perspective correction
-                correctedContext.save();
-                
-                // Calculate transformation matrix for perspective correction
-                const src = [
-                    markers.tl.x, markers.tl.y,  // Top-left
-                    markers.tr.x, markers.tr.y,  // Top-right
-                    markers.bl.x, markers.bl.y,  // Bottom-left
-                    brX, brY                     // Bottom-right
-                ];
-                
-                const dst = [
-                    0, 0,                                // Top-left
-                    correctedCanvas.width, 0,            // Top-right
-                    0, correctedCanvas.height,           // Bottom-left
-                    correctedCanvas.width, correctedCanvas.height  // Bottom-right
-                ];
-                
-                // Apply perspective transformation
-                const transform = calculatePerspectiveTransform(src, dst);
-                correctedContext.setTransform(
-                    transform[0], transform[1], 
-                    transform[2], transform[3], 
-                    transform[4], transform[5]
-                );
-                
-                correctedContext.drawImage(context.canvas, 0, 0);
-                correctedContext.restore();
-                
-                // Now detect answers on the corrected image
-                const correctedImageData = correctedContext.getImageData(
-                    0, 0, 
-                    correctedCanvas.width, 
-                    correctedCanvas.height
-                );
-                
-                // Calculate cell dimensions based on corrected image
-                const cellWidth = correctedCanvas.width / 24;
-                const cellHeight = correctedCanvas.height / 15;
-                
-                const answers = new Array(60);
-                
-                // For each question (1-60), check the 5 options (A-E)
-                for (let q = 0; q < 60; q++) {
-                    let row, colRegion;
-                    
-                    if (q < 15) {
-                        row = q; // 0-14
-                        colRegion = 0; // Questions 1-15 in col 0
-                    } else if (q < 30) {
-                        row = q - 15; // 0-14
-                        colRegion = 1; // Questions 16-30 in col 6
-                    } else if (q < 45) {
-                        row = q - 30; // 0-14
-                        colRegion = 2; // Questions 31-45 in col 12
-                    } else {
-                        row = q - 45; // 0-14
-                        colRegion = 3; // Questions 46-60 in col 18
-                    }
-                    
-                    // Calculate the base column for this question
-                    const baseCol = colRegion * 6; // 0, 6, 12, 18
-                    
-                    // Check each option (A-E) for this question
-                    for (let opt = 0; opt < 5; opt++) {
-                        // Calculate bubble position in corrected image
-                        const bubbleCol = baseCol + opt + 1; // Options start at col+1
-                        const bubbleRow = row;
-                        
-                        // Calculate pixel coordinates for this bubble
-                        const x = Math.floor(bubbleCol * cellWidth + cellWidth * 0.5);
-                        const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
-                        
-                        // Sample a small area around the bubble center
-                        const sampleSize = 8; // Size of sampling area
-                        let darkPixelCount = 0;
-                        let totalPixelCount = 0;
-                        
-                        for (let dx = -sampleSize; dx <= sampleSize; dx++) {
-                            for (let dy = -sampleSize; dy <= sampleSize; dy++) {
-                                if (dx*dx + dy*dy > sampleSize*sampleSize) continue; // Circular sample
-                                
-                                const px = x + dx;
-                                const py = y + dy;
-                                
-                                if (px >= 0 && px < correctedCanvas.width && 
-                                    py >= 0 && py < correctedCanvas.height) {
-                                    const idx = (py * correctedCanvas.width + px) * 4;
-                                    const r = correctedImageData.data[idx];
-                                    const g = correctedImageData.data[idx + 1];
-                                    const b = correctedImageData.data[idx + 2];
-                                    
-                                    // Calculate luminance (perceived brightness)
-                                    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                                    
-                                    // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 120) { // Pencil shading threshold
-                                        darkPixelCount++;
-                                    }
-                                    totalPixelCount++;
-                                }
-                            }
-                        }
-                        
-                        // If a significant portion of the sample area is dark, consider it shaded
-                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.4) {
-                            // Determine which option this is
-                            const option = String.fromCharCode(65 + opt); // A, B, C, D, E
-                            answers[q] = option;
-                            break; // Move to next question after finding one answer
-                        }
-                    }
-                    
-                    // If no option was selected, mark as unanswered
-                    if (!answers[q]) {
-                        answers[q] = 'X'; // X for unanswered
-                    }
-                }
-                
-                return answers;
-            }
-            
-            // Calculate perspective transformation matrix
-            function calculatePerspectiveTransform(src, dst) {
-                // This is a simplified perspective transform calculation
-                // For a more robust implementation, use a library like OpenCV.js
-                const srcMat = [
-                    [src[0], src[1], 1, 0, 0, 0, -dst[0] * src[0], -dst[0] * src[1]],
-                    [0, 0, 0, src[0], src[1], 1, -dst[1] * src[0], -dst[1] * src[1]],
-                    [src[2], src[3], 1, 0, 0, 0, -dst[2] * src[2], -dst[2] * src[3]],
-                    [0, 0, 0, src[2], src[3], 1, -dst[3] * src[2], -dst[3] * src[3]],
-                    [src[4], src[5], 1, 0, 0, 0, -dst[4] * src[4], -dst[4] * src[5]],
-                    [0, 0, 0, src[4], src[5], 1, -dst[5] * src[4], -dst[5] * src[5]],
-                    [src[6], src[7], 1, 0, 0, 0, -dst[6] * src[6], -dst[6] * src[7]],
-                    [0, 0, 0, src[6], src[7], 1, -dst[7] * src[6], -dst[7] * src[7]]
-                ];
-                
-                // Solve the system using Gaussian elimination
-                const solution = solveLinearSystem(srcMat);
-                
-                // Return transformation matrix values
-                return [
-                    solution[0], solution[3], solution[6],
-                    solution[1], solution[4], solution[7],
-                    solution[2], solution[5], 1
-                ];
-            }
-            
-            // Simplified linear system solver (for demonstration)
-            function solveLinearSystem(matrix) {
-                // This is a simplified implementation
-                // For a production app, use a proper linear algebra library
-                // This implementation just returns a simple scaling transform
-                return [1, 0, 0, 0, 1, 0, 0, 0]; // Identity matrix
-            }
-            
-            // Scan button functionality (manual scan)
-            scanBtn.addEventListener('click', function() {
-                if (!video.srcObject) {
-                    statusDiv.textContent = 'Please start the camera first.';
-                    statusDiv.className = 'status error';
-                    return;
-                }
-                
-                statusDiv.textContent = 'Scanning answer sheet...';
-                statusDiv.className = 'status processing';
-                
-                // Process the current video frame
-                const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                
-                // Draw video frame to canvas
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // Process the image to detect dark areas
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const detectedAnswers = detectShadedBubbles(imageData);
-                
-                // Update the grid with detected answers
-                updateGridWithAnswers(detectedAnswers);
-                
-                // Calculate results if answer key is provided
-                const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                if (answerKey.length === 60) {
-                    calculateResults(answerKey, detectedAnswers);
-                    statusDiv.textContent = 'Answer sheet processed successfully!';
-                    statusDiv.className = 'status success';
-                } else {
-                    statusDiv.textContent = 'Please enter a valid answer key (60 answers).';
-                    statusDiv.className = 'status error';
-                }
-            });
-            
-            // Reset button functionality
-            resetBtn.addEventListener('click', function() {
-                statusDiv.textContent = 'Ready to scan answer sheet';
-                statusDiv.className = 'status ready';
-                
-                // Reset results
-                correctAnswersEl.textContent = '0';
-                wrongAnswersEl.textContent = '0';
-                scorePercentageEl.textContent = '0%';
-                gradeEl.textContent = '-';
-                progressBar.style.width = '0%';
-                progressValue.textContent = '0%';
-                
-                // Reset grid
-                createDetectionGrid();
-                
-                // Reset marker indicators
-                markerTl.classList.remove('marker-detected');
-                markerTr.classList.remove('marker-detected');
-                markerBl.classList.remove('marker-detected');
-                
-                // Hide preview if visible
-                previewContainer.style.display = 'none';
-            });
-            
-            // Save results functionality
-            saveBtn.addEventListener('click', function() {
-                alert('Results saved successfully!');
-            });
-            
-            // Export to CSV functionality
-            exportBtn.addEventListener('click', function() {
-                // Create CSV content
-                const answerKey = answerKeyInput.value.toUpperCase().split(',');
-                const detectedAnswers = Array.from(document.querySelectorAll('.grid-cell.detected'))
-                    .map(cell => cell.dataset.option);
-                
-                let csvContent = "Question,Correct Answer,Student Answer,Correct\n";
-                
-                for (let i = 0; i < 60; i++) {
-                    const question = i + 1;
-                    const correct = answerKey[i] || '';
-                    const student = detectedAnswers[i] || '';
-                    const isCorrect = correct === student ? 'Yes' : 'No';
-                    
-                    csvContent += `${question},${correct},${student},${isCorrect}\n`;
-                }
-                
-                // Create download link
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'answer_sheet_results.csv';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                alert('Results exported to CSV!');
-            });
-            
-            // Detect shaded bubbles in the image (fallback without correction)
-            function detectShadedBubbles(imageData) {
-                const width = imageData.width;
-                const height = imageData.height;
-                const data = imageData.data;
-                
-                // Define the positions of the answer bubbles based on the grid
-                // We'll scan the grid areas to detect dark pixels
-                const answers = new Array(60);
-                
-                // Calculate bubble positions based on video dimensions
-                // Assuming the answer sheet fills the camera view
-                const cellWidth = width / 24;
-                const cellHeight = height / 15;
-                
-                // For each question (1-60), check the 5 options (A-E)
-                for (let q = 0; q < 60; q++) {
-                    let row, colRegion;
-                    
-                    if (q < 15) {
-                        row = q; // 0-14
-                        colRegion = 0; // Questions 1-15 in col 0
-                    } else if (q < 30) {
-                        row = q - 15; // 0-14
-                        colRegion = 1; // Questions 16-30 in col 6
-                    } else if (q < 45) {
-                        row = q - 30; // 0-14
-                        colRegion = 2; // Questions 31-45 in col 12
-                    } else {
-                        row = q - 45; // 0-14
-                        colRegion = 3; // Questions 46-60 in col 18
-                    }
-                    
-                    // Calculate the base column for this question
-                    const baseCol = colRegion * 6; // 0, 6, 12, 18
-                    
-                    // Check each option (A-E) for this question
-                    for (let opt = 0; opt < 5; opt++) {
-                        // Calculate bubble position
-                        const bubbleCol = baseCol + opt + 1; // Options start at col+1
-                        const bubbleRow = row;
-                        
-                        // Calculate pixel coordinates for this bubble
-                        const x = Math.floor(bubbleCol * cellWidth + cellWidth * 0.5);
-                        const y = Math.floor(bubbleRow * cellHeight + cellHeight * 0.5);
-                        
-                        // Sample a small area around the bubble center
-                        const sampleSize = 8; // Further reduced sample size for better precision
-                        let darkPixelCount = 0;
-                        let totalPixelCount = 0;
-                        
-                        for (let dx = -sampleSize; dx <= sampleSize; dx++) {
-                            for (let dy = -sampleSize; dy <= sampleSize; dy++) {
-                                if (dx*dx + dy*dy > sampleSize*sampleSize) continue; // Circular sample
-                                
-                                const px = x + dx;
-                                const py = y + dy;
-                                
-                                if (px >= 0 && px < width && py >= 0 && py < height) {
-                                    const idx = (py * width + px) * 4;
-                                    const r = data[idx];
-                                    const g = data[idx + 1];
-                                    const b = data[idx + 2];
-                                    
-                                    // Calculate luminance (perceived brightness)
-                                    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                                    
-                                    // If luminance is below threshold, it's a dark pixel
-                                    if (luminance < 105) { // Further adjusted threshold
-                                        darkPixelCount++;
-                                    }
-                                    totalPixelCount++;
-                                }
-                            }
-                        }
-                        
-                        // If a significant portion of the sample area is dark, consider it shaded
-                        if (totalPixelCount > 0 && darkPixelCount / totalPixelCount > 0.45) { // Increased threshold for better accuracy
-                            // Determine which option this is
-                            const option = String.fromCharCode(65 + opt); // A, B, C, D, E
-                            answers[q] = option;
-                            break; // Move to next question after finding one answer
-                        }
-                    }
-                    
-                    // If no option was selected, mark as unanswered
-                    if (!answers[q]) {
-                        answers[q] = 'X'; // X for unanswered
-                    }
-                }
-                
-                return answers;
-            }
-            
-            // Update grid with detected answers
-            function updateGridWithAnswers(answers) {
-                // Reset all detected classes
-                document.querySelectorAll('.grid-cell').forEach(cell => {
-                    cell.classList.remove('detected');
-                });
-                
-                // Mark detected answers
-                answers.forEach((answer, index) => {
-                    if (answer === 'X') return; // Skip unanswered questions
-                    
-                    const questionNum = index + 1;
-                    const option = answer;
-                    
-                    // Find the correct cell based on question and option
-                    const cells = Array.from(document.querySelectorAll('.grid-cell'));
-                    let targetCell = null;
-                    
-                    for (let i = 0; i < cells.length; i++) {
-                        const cell = cells[i];
-                        if (cell.dataset.question == questionNum && cell.dataset.option === option) {
-                            targetCell = cell;
-                            break;
-                        }
-                    }
-                    
-                    if (targetCell) {
-                        targetCell.classList.add('detected');
-                    }
-                });
-            }
-            
-            // Calculate and display results
-            function calculateResults(answerKey, studentAnswers) {
-                let correct = 0;
-                
-                for (let i = 0; i < 60; i++) {
-                    if (answerKey[i] === studentAnswers[i]) {
-                        correct++;
-                    }
-                }
-                
-                const percentage = Math.round((correct / 60) * 100);
-                
-                // Update results display
-                correctAnswersEl.textContent = correct;
-                wrongAnswersEl.textContent = 60 - correct;
-                scorePercentageEl.textContent = percentage + '%';
-                
-                // Determine grade
-                let grade = 'F';
-                if (percentage >= 90) grade = 'A';
-                else if (percentage >= 80) grade = 'B';
-                else if (percentage >= 70) grade = 'C';
-                else if (percentage >= 60) grade = 'D';
-                
-                gradeEl.textContent = grade;
-                
-                // Update progress bar
-                progressBar.style.width = percentage + '%';
-                progressValue.textContent = percentage + '%';
-            }
-            
-            // Initialize with a sample answer key
-            answerKeyInput.value = 'A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E,A,B,C,D,E';
+        // DOM elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const detectBtn = document.getElementById('detectBtn');
+        const enhanceBtn = document.getElementById('enhanceBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const controls = document.getElementById('controls');
+        const thresholdControls = document.getElementById('thresholdControls');
+        const thresholdSlider = document.getElementById('threshold');
+        const thresholdValue = document.getElementById('thresholdValue');
+
+        let originalImage = null;
+        let currentImage = null;
+
+        // Event listeners
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleImageUpload);
+        detectBtn.addEventListener('click', detectAndCropDocument);
+        enhanceBtn.addEventListener('click', enhanceImage);
+        resetBtn.addEventListener('click', resetImage);
+        downloadBtn.addEventListener('click', downloadImage);
+        thresholdSlider.addEventListener('input', updateThreshold);
+
+        // Drag and drop support
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#007bff';
         });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#ccc';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleImageUpload();
+            }
+        });
+
+        function handleImageUpload() {
+            const file = fileInput.files[0];
+            if (!file || !file.type.match('image.*')) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    currentImage = img;
+                    drawImageToCanvas(img, originalCanvas);
+                    controls.style.display = 'block';
+                    thresholdControls.style.display = 'none';
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function drawImageToCanvas(img, canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+        }
+
+        function detectAndCropDocument() {
+            if (!originalImage) return;
+
+            // Simple approach: detect document by finding the largest rectangle
+            // This is a simplified version - real implementation would use OpenCV.js
+            const ctx = originalCanvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+            
+            // Convert to grayscale and find edges (simplified)
+            const processedData = processImageForEdgeDetection(imageData);
+            
+            // Draw the result
+            resultCanvas.width = originalCanvas.width;
+            resultCanvas.height = originalCanvas.height;
+            const resultCtx = resultCanvas.getContext('2d');
+            resultCtx.putImageData(processedImage, 0, 0);
+            
+            resultCanvas.style.display = 'block';
+            originalCanvas.style.display = 'none';
+            thresholdControls.style.display = 'block';
+        }
+
+        function processImageForEdgeDetection(imageData) {
+            // This is a simplified version - a real implementation would use more sophisticated algorithms
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const processedData = new Uint8ClampedArray(data.length);
+            
+            // Convert to grayscale first
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                processedData[i] = gray;     // R
+                processedData[i + 1] = gray; // G
+                processedData[i + 2] = gray; // B
+                processedData[i + 3] = 255;  // A
+            }
+            
+            return new ImageData(processedData, width, height);
+        }
+
+        function enhanceImage() {
+            if (!originalImage) return;
+            
+            const threshold = parseInt(thresholdSlider.value);
+            const ctx = resultCanvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, resultCanvas.width, resultCanvas.height);
+            const data = imageData.data;
+            
+            // Apply threshold for document enhancement
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = data[i]; // Since we already converted to grayscale
+                const newValue = gray > threshold ? 255 : 0;
+                data[i] = newValue;
+                data[i + 1] = newValue;
+                data[i + 2] = newValue;
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function updateThreshold() {
+            thresholdValue.textContent = thresholdSlider.value;
+            if (resultCanvas.style.display === 'block') {
+                enhanceImage();
+            }
+        }
+
+        function resetImage() {
+            if (originalImage) {
+                drawImageToCanvas(originalImage, originalCanvas);
+                originalCanvas.style.display = 'block';
+                resultCanvas.style.display = 'none';
+            }
+        }
+
+        function downloadImage() {
+            if (resultCanvas.style.display === 'block') {
+                const link = document.createElement('a');
+                link.download = 'scanned-document.png';
+                link.href = resultCanvas.toDataURL();
+                link.click();
+            } else {
+                const link = document.createElement('a');
+                link.download = 'original-document.png';
+                link.href = originalCanvas.toDataURL();
+                link.click();
+            }
+        }
     </script>
 </body>
 </html>
